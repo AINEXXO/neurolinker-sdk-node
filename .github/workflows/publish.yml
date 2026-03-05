@@ -49,7 +49,7 @@ jobs:
           EOF
 
       - name: Run tests
-        run: npm test
+        run: npx vitest run --testTimeout $(( ${{ vars.NEUROLINKER_E2E_TIMEOUT_S }} * 1000 ))
 
       - name: Determine version
         id: get_version

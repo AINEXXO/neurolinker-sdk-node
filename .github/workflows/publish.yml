@@ -52,7 +52,11 @@ jobs:
           NEUROLINKER_TEST_PDF_URL=${{ vars.NEUROLINKER_TEST_PDF_URL }}
           EOF
 
-            - name: Determine version
+      #TODO: remove tests to speed-up just for debug.
+      # - name: Run tests
+      #   run: npx vitest run --testTimeout $(( ${{ vars.NEUROLINKER_E2E_TIMEOUT_S }} * 1000 ))
+
+      - name: Determine version
         id: get_version
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
@@ -66,26 +70,27 @@ jobs:
 
           echo "release_version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure tag does not already exist
+        env:
+          VERSION: ${{ steps.get_version.outputs.release_version }}
+        run: |
+          TAG="v$VERSION"
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+            echo "ERROR: tag $TAG already exists on origin."
+            exit 1
+          fi
+
       - name: Create and push git tag
         env:
           VERSION: ${{ steps.get_version.outputs.release_version }}
         run: |
           TAG="v$VERSION"
 
-          if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
-            echo "Tag $TAG already exists on origin. Skipping tag creation."
-            exit 0
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git tag "$TAG" "$GITHUB_SHA"
           git push origin "$TAG"
-
-      #TODO: remove tests to speed-up just for debug.
-      # - name: Run tests
-      #   run: npx vitest run --testTimeout $(( ${{ vars.NEUROLINKER_E2E_TIMEOUT_S }} * 1000 ))
 
       - name: Build
         run: npm run build

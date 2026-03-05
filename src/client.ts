@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
+  DEFAULT_BASE_URL,
   DEFAULT_POLL_INTERVAL_S,
   DEFAULT_POLL_MAX_INTERVAL_S,
   DEFAULT_TIMEOUT_S,
@@ -58,7 +59,7 @@ export class NeuroLinker {
     pollIntervalS?: number;
     pollMaxIntervalS?: number;
   }) {
-    this.baseUrl = (args.baseUrl || "https://neurolinker.api.ainexxo.com").replace(/\/+$/, "");
+    this.baseUrl = (args.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.token = args.token;
 
     this.timeoutS = args.timeoutS ?? DEFAULT_TIMEOUT_S;

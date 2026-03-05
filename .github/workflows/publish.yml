@@ -104,12 +104,12 @@ jobs:
           npm config get registry
           npm token list || true
 
-      - name: Publish dry-run
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --dry-run
-
-      # - name: Publish to npm
+      # - name: Publish dry-run
       #   env:
       #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      #   run: npm publish --access public
+      #   run: npm publish --access public --dry-run
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public

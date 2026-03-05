@@ -41,6 +41,9 @@ jobs:
       - name: Ensure latest npm
         run: npm install -g npm@latest
 
+      - name: Show npm version
+        run: npm --version
+
       - name: Install dependencies
         run: npm ci
 
@@ -79,10 +82,19 @@ jobs:
           npm config get userconfig
           npm config get registry
 
-      - name: Clean npm auth config (force OIDC)
+      - name: Sanitize npm user config (remove legacy auth)
         run: |
-          rm -f ~/.npmrc || true
-          rm -f "${NPM_CONFIG_USERCONFIG}" || true
+          USERCONFIG="$(npm config get userconfig)"
+          echo "Using userconfig: $USERCONFIG"
+          if [ -f "$USERCONFIG" ]; then
+            # Remove legacy/undesired settings that can break OIDC flows or force token auth
+            sed -i '/always-auth/d' "$USERCONFIG"
+            sed -i '/_authToken/d' "$USERCONFIG"
+            sed -i '/_auth=/d' "$USERCONFIG"
+            sed -i '/username=/d' "$USERCONFIG"
+            sed -i '/password=/d' "$USERCONFIG"
+          fi
+          # Show sanitized config keys (no secrets)
           npm config list -l | sed -E 's/(authToken=).+/\1[REDACTED]/g'
 
       - name: Publish to npm (Trusted Publishing)

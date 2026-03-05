@@ -144,3 +144,4 @@ dist/
 .env
 .DS_Store
 coverage/
+tech-doc.md

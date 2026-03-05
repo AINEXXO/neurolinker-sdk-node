@@ -15,6 +15,7 @@ jobs:
 
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -37,6 +38,9 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           cache: "npm"
 
+      - name: Ensure latest npm
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
 
@@ -55,33 +59,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Configure npm auth
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "${NPM_CONFIG_USERCONFIG}"
-
-      - name: Verify npm auth
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm whoami
-
-      - name: Debug npm auth details
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          npm config get registry
-          npm token list
-
-      # - name: Publish dry-run
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      #   run: npm publish --access public --dry-run
-
-      - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+      - name: Publish to npm (Trusted Publishing)
+        run: npm publish --access public --provenance
 
       - name: Determine version
         id: get_version
@@ -104,8 +83,8 @@ jobs:
           TAG="v$VERSION"
 
           if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
-            echo "ERROR: tag $TAG already exists on origin."
-            exit 1
+            echo "Tag $TAG already exists on origin. Skipping tag creation."
+            exit 0
           fi
 
           git config user.name "github-actions[bot]"

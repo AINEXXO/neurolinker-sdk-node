@@ -71,7 +71,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm config get registry
-          npm token list || true
+          npm token list
 
       # - name: Publish dry-run
       #   env:

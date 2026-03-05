@@ -52,37 +52,6 @@ jobs:
       # - name: Run tests
       #   run: npx vitest run --testTimeout $(( ${{ vars.NEUROLINKER_E2E_TIMEOUT_S }} * 1000 ))
 
-      - name: Determine version
-        id: get_version
-        run: |
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          echo "package_version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
-
-          INPUT_VERSION="${{ github.event.inputs.release_version }}"
-          if [ -n "$INPUT_VERSION" ] && [ "$INPUT_VERSION" != "$PKG_VERSION" ]; then
-            echo "ERROR: input version ($INPUT_VERSION) differs from package.json ($PKG_VERSION)"
-            exit 1
-          fi
-
-          echo "release_version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Create and push git tag
-        env:
-          VERSION: ${{ steps.get_version.outputs.release_version }}
-        run: |
-          TAG="v$VERSION"
-
-          if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
-            echo "ERROR: tag $TAG already exists on origin."
-            exit 1
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git tag "$TAG" "$GITHUB_SHA"
-          git push origin "$TAG"
-
       - name: Build
         run: npm run build
 
@@ -113,3 +82,34 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
+
+      - name: Determine version
+        id: get_version
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "package_version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+          INPUT_VERSION="${{ github.event.inputs.release_version }}"
+          if [ -n "$INPUT_VERSION" ] && [ "$INPUT_VERSION" != "$PKG_VERSION" ]; then
+            echo "ERROR: input version ($INPUT_VERSION) differs from package.json ($PKG_VERSION)"
+            exit 1
+          fi
+
+          echo "release_version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push git tag
+        env:
+          VERSION: ${{ steps.get_version.outputs.release_version }}
+        run: |
+          TAG="v$VERSION"
+
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+            echo "ERROR: tag $TAG already exists on origin."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"

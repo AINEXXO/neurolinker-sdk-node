@@ -20,7 +20,7 @@ describe("client helpers", () => {
     const client = new NeuroLinker({ token: "nl_dummy", timeoutS: 1 });
     const payload = await client.tasks.list();
     expect(payload.success).toBe(true);
-    expect((payload as any).url).toBe("https://neurolinker.api.ainexxo.com/v1/tasks");
+    expect((payload as any).url).toBe("https://neurolinker.api.ainexxo.com/v1/tasks"); //TODO: This check will fail in dev, but its okay.
   });
 
   it("extractRequestUid accepts top-level or nested data", () => {

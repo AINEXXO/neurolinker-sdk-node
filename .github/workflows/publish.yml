@@ -37,9 +37,6 @@ jobs:
           node-version: "24"
           cache: "npm"
 
-      - name: Ensure latest npm
-        run: npm install -g npm@latest
-
       - name: Show npm version
         run: npm --version
 

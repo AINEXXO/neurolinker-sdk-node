@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env from GitHub secrets and variables
+        run: |
+          cat <<EOF > .env
+          NEUROLINKER_BASE_URL=${{ vars.NEUROLINKER_BASE_URL }}
+          NEUROLINKER_API_KEY=${{ secrets.NEUROLINKER_API_KEY }}
+          NEUROLINKER_TEST_PDF_URL=${{ vars.NEUROLINKER_TEST_PDF_URL }}
+          EOF
+
+      - name: Run tests
+        run: npm test

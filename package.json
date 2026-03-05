@@ -1,0 +1,43 @@
+{
+  "name": "neurolinker-sdk",
+  "version": "0.1.0",
+  "description": "A Node.js/TypeScript SDK for the NeuroLinker API from Ainexxo S.R.L.",
+  "license": "MIT",
+  "author": "Ainexxo S.R.L.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AINEXXO/neurolinker-sdk-npm.git"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "dotenv": "^16.4.5",
+    "eslint": "^9.0.0",
+    "tsup": "^8.2.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

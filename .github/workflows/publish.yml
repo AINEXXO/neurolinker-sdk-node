@@ -97,6 +97,18 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm whoami
 
+      - name: Debug npm auth details
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm config get registry
+          npm token list || true
+
+      - name: Publish dry-run
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --dry-run
+
       - name: Debug 
         run: npm view neurolinker-sdk --json
 

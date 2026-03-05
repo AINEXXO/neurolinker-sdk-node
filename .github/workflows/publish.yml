@@ -70,6 +70,24 @@ jobs:
 
           echo "release_version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Build
+        run: npm run build
+
+      - name: Debug npm config paths
+        run: |
+          echo "NPM_CONFIG_USERCONFIG=${NPM_CONFIG_USERCONFIG}"
+          npm config get userconfig
+          npm config get registry
+
+      - name: Clean npm auth config (force OIDC)
+        run: |
+          rm -f ~/.npmrc || true
+          rm -f "${NPM_CONFIG_USERCONFIG}" || true
+          npm config list -l | sed -E 's/(authToken=).+/\1[REDACTED]/g'
+
+      - name: Publish to npm (Trusted Publishing)
+        run: npm publish --access public --provenance
+
       - name: Ensure tag does not already exist
         env:
           VERSION: ${{ steps.get_version.outputs.release_version }}
@@ -91,9 +109,3 @@ jobs:
 
           git tag "$TAG" "$GITHUB_SHA"
           git push origin "$TAG"
-
-      - name: Build
-        run: npm run build
-
-      - name: Publish to npm (Trusted Publishing)
-        run: npm publish --access public --provenance

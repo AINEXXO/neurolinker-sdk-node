@@ -1,6 +1,6 @@
 {
   "name": "neurolinker-sdk",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "A Node.js/TypeScript SDK for the NeuroLinker API from Ainexxo S.R.L.",
   "license": "MIT",
   "author": "Ainexxo S.R.L.",

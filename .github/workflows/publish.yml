@@ -36,6 +36,7 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Show npm version
         run: npm --version
@@ -78,23 +79,23 @@ jobs:
           npm config get userconfig
           npm config get registry
 
-      - name: Sanitize npm user config (remove legacy auth)
-        run: |
-          USERCONFIG="$(npm config get userconfig)"
-          echo "Using userconfig: $USERCONFIG"
-          if [ -f "$USERCONFIG" ]; then
-            # Remove legacy/undesired settings that can break OIDC flows or force token auth
-            sed -i '/always-auth/d' "$USERCONFIG"
-            sed -i '/_authToken/d' "$USERCONFIG"
-            sed -i '/_auth=/d' "$USERCONFIG"
-            sed -i '/username=/d' "$USERCONFIG"
-            sed -i '/password=/d' "$USERCONFIG"
-          fi
-          # Show sanitized config keys (no secrets)
-          npm config list -l | sed -E 's/(authToken=).+/\1[REDACTED]/g'
+      # - name: Sanitize npm user config (remove legacy auth)
+      #   run: |
+      #     USERCONFIG="$(npm config get userconfig)"
+      #     echo "Using userconfig: $USERCONFIG"
+      #     if [ -f "$USERCONFIG" ]; then
+      #       # Remove legacy/undesired settings that can break OIDC flows or force token auth
+      #       sed -i '/always-auth/d' "$USERCONFIG"
+      #       sed -i '/_authToken/d' "$USERCONFIG"
+      #       sed -i '/_auth=/d' "$USERCONFIG"
+      #       sed -i '/username=/d' "$USERCONFIG"
+      #       sed -i '/password=/d' "$USERCONFIG"
+      #     fi
+      #     # Show sanitized config keys (no secrets)
+      #     npm config list -l | sed -E 's/(authToken=).+/\1[REDACTED]/g'
 
       - name: Publish to npm (Trusted Publishing)
-        run: npm publish --access public --provenance
+        run: npm publish --access public
 
       - name: Ensure tag does not already exist
         env:

@@ -52,9 +52,8 @@ jobs:
           NEUROLINKER_TEST_PDF_URL=${{ vars.NEUROLINKER_TEST_PDF_URL }}
           EOF
 
-      #TODO: remove tests to speed-up just for debug.
-      # - name: Run tests
-      #   run: npx vitest run --testTimeout $(( ${{ vars.NEUROLINKER_E2E_TIMEOUT_S }} * 1000 ))
+      - name: Run tests
+        run: npx vitest run --testTimeout $(( ${{ vars.NEUROLINKER_E2E_TIMEOUT_S }} * 1000 ))
 
       - name: Determine version
         id: get_version

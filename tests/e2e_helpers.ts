@@ -1,6 +1,6 @@
 // tests/e2e_helpers.ts
 import { readFile } from "node:fs/promises";
-import { NeuroLinker } from "../src/client.js";
+import { NeuroLinker } from "../src/index.js";
 
 export const TOKEN = process.env.NEUROLINKER_API_KEY;
 export const PDF_URL = process.env.NEUROLINKER_TEST_PDF_URL;

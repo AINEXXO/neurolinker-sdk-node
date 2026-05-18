@@ -2,12 +2,16 @@ import { NeuroLinkerConfigError } from "../errors.js";
 import { buildUrl, fetchJson, fetchMultipart } from "../http.js";
 
 export type DocumentUpload = { filename: string; content: Buffer };
+export type EnrichmentMode = "base" | "turbo";
+
+const VALID_ENRICHMENT_MODES = new Set<EnrichmentMode>(["base", "turbo"]);
 
 interface FormPayloadFields {
   urls?: string[];
   alias?: string;
   description?: string;
   jsonSchema?: Record<string, unknown>;
+  enrichmentMode?: EnrichmentMode;
 }
 
 function validateSubmitModes(args: {
@@ -44,12 +48,24 @@ function validateJsonSchema(jsonSchema: unknown): asserts jsonSchema is Record<s
   }
 }
 
+function validateEnrichmentMode(
+  enrichmentMode: string | undefined,
+): asserts enrichmentMode is EnrichmentMode | undefined {
+  if (enrichmentMode === undefined) return;
+  if (!VALID_ENRICHMENT_MODES.has(enrichmentMode as EnrichmentMode)) {
+    throw new NeuroLinkerConfigError(
+      `enrichmentMode must be one of ${JSON.stringify(Array.from(VALID_ENRICHMENT_MODES))}, got ${JSON.stringify(enrichmentMode)}.`,
+    );
+  }
+}
+
 function encodeFormPayload(fields: FormPayloadFields): string {
   const payload: Record<string, unknown> = {};
   if (fields.urls && fields.urls.length > 0) payload.documents_url = fields.urls;
   if (fields.alias) payload.alias = fields.alias;
   if (fields.description) payload.description = fields.description;
   if (fields.jsonSchema !== undefined) payload.json_schema = fields.jsonSchema;
+  if (fields.enrichmentMode !== undefined) payload.enrichment_mode = fields.enrichmentMode;
   return JSON.stringify(payload);
 }
 
@@ -74,29 +90,26 @@ export class ExtractResource {
     urls?: string[];
     alias?: string;
     description?: string;
+    enrichmentMode?: EnrichmentMode;
   }): Promise<Record<string, unknown>> {
     const hasDocs = !!args.documents && args.documents.length > 0;
     const hasUrls = !!args.urls && args.urls.length > 0;
     validateSubmitModes({ hasDocs, hasUrls, methodLabel: "extract" });
+    validateEnrichmentMode(args.enrichmentMode);
 
     const url = buildUrl(this.baseUrl, "/v1/extract");
     const fd = new FormData();
-
-    if (hasDocs) {
-      fd.set("form", "{}");
-      appendDocuments(fd, args.documents!);
-      return await fetchMultipart({
-        url,
-        token: this.token,
-        timeoutS: this.timeoutS,
-        formData: fd,
-      });
-    }
-
     fd.set(
       "form",
-      encodeFormPayload({ urls: args.urls, alias: args.alias, description: args.description }),
+      encodeFormPayload({
+        urls: hasUrls ? args.urls : undefined,
+        alias: args.alias,
+        description: args.description,
+        enrichmentMode: args.enrichmentMode,
+      }),
     );
+    if (hasDocs) appendDocuments(fd, args.documents!);
+
     return await fetchMultipart({
       url,
       token: this.token,

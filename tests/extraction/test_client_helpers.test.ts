@@ -4,6 +4,7 @@ import {
   extractRequestUid,
   extractDocumentIds,
 } from "../../src/index.js";
+import { DEFAULT_BASE_URL } from "../../src/config.js";
 
 describe("client helpers", () => {
   const originalFetch = globalThis.fetch;
@@ -27,7 +28,7 @@ describe("client helpers", () => {
     const client = new NeuroLinker({ token: "nl_dummy", timeoutS: 1 });
     const payload = await client.extraction.listTasks();
     expect((payload as any).success).toBe(true);
-    expect((payload as any).url).toBe("https://neurolinker.api.ainexxo.com/v1/tasks");
+    expect((payload as any).url).toBe(`${DEFAULT_BASE_URL}/v1/tasks`);
   });
 
   it("extractRequestUid accepts top-level or nested data", () => {

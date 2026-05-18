@@ -11,6 +11,8 @@ import {
   toVectorDBConfigPayload,
 } from "./models.js";
 
+const TERMINAL_STATES = new Set(["completed", "failed"]);
+
 function buildLoadJobPayload(args: {
   bucketUid: string;
   collectionName: string;
@@ -70,12 +72,15 @@ export class JobsResource {
     });
   }
 
-  async get(jobUid: string): Promise<Record<string, unknown>> {
+  async get(bucketUid: string, jobUid: string): Promise<Record<string, unknown>> {
+    if (!bucketUid) {
+      throw new NeuroLinkerConfigError("bucketUid must be a non-empty string.");
+    }
     if (!jobUid) {
       throw new NeuroLinkerConfigError("jobUid must be a non-empty string.");
     }
     return await fetchJson({
-      url: buildUrl(this.baseUrl, `/v1/vector-store/jobs/${jobUid}`),
+      url: buildUrl(this.baseUrl, `/v1/vector-store/jobs/${bucketUid}/${jobUid}`),
       method: "GET",
       token: this.token,
       timeoutS: this.timeoutS,
@@ -83,6 +88,7 @@ export class JobsResource {
   }
 
   async wait(
+    bucketUid: string,
     jobUid: string,
     opts?: {
       timeoutS?: number;
@@ -91,7 +97,7 @@ export class JobsResource {
     },
   ): Promise<Record<string, unknown>> {
     return await waitForTerminalStatus<Record<string, unknown>>({
-      fetchStatus: () => this.get(jobUid),
+      fetchStatus: () => this.get(bucketUid, jobUid),
       extractStatus: (r) => {
         const s = (r as Record<string, unknown>).status;
         return typeof s === "string" ? s : undefined;
@@ -99,6 +105,7 @@ export class JobsResource {
       timeoutS: opts?.timeoutS ?? this.timeoutS,
       pollIntervalS: opts?.pollIntervalS ?? this.pollIntervalS,
       pollMaxIntervalS: opts?.pollMaxIntervalS ?? this.pollMaxIntervalS,
+      terminalStates: TERMINAL_STATES,
       identifier: `vector-load job ${jobUid}`,
     });
   }

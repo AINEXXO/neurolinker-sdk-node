@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   NeuroLinker,
   type CollectionSchemaInput,
@@ -30,8 +29,8 @@ function buildCollection(name: string): CollectionSchemaInput {
   };
 }
 
-function buildVdbConfig(secretId: string): VectorDBConfigInput {
-  return { uri: VECTOR_DB_URI!, secretId };
+function buildVdbConfig(): VectorDBConfigInput {
+  return { uri: VECTOR_DB_URI!, apiKey: VECTOR_DB_API_KEY! };
 }
 
 function buildFieldMappings(): FieldMappingInput[] {
@@ -44,34 +43,10 @@ function buildFieldMappings(): FieldMappingInput[] {
 
 describe("e2e vector_store — full flow", () => {
   let client: NeuroLinker | undefined;
-  let vdbSecretId: string | undefined;
 
   beforeAll(async () => {
     if (!RUN) return;
     client = NeuroLinker.fromEnv();
-    const secretName = `sdk_e2e_vdb_${randomUUID().replace(/-/g, "").slice(0, 8)}`;
-    const created = await client.management.secrets.create({
-      name: secretName,
-      value: VECTOR_DB_API_KEY!,
-    });
-    const id = (created as Record<string, unknown>).secret_id as string;
-    if (typeof id !== "string" || !id) {
-      throw new Error(
-        `secrets.create did not return a usable secret_id: ${JSON.stringify(created)}`,
-      );
-    }
-    vdbSecretId = id;
-    console.log(`[vector_store e2e] managed secret created: ${id}`);
-  });
-
-  afterAll(async () => {
-    if (!RUN || !client || !vdbSecretId) return;
-    try {
-      await client.management.secrets.delete(vdbSecretId);
-      console.log(`[vector_store e2e] managed secret deleted: ${vdbSecretId}`);
-    } catch (e) {
-      console.warn(`[cleanup] delete secret ${vdbSecretId} failed:`, e);
-    }
   });
 
   it.skipIf(!RUN)(
@@ -79,11 +54,9 @@ describe("e2e vector_store — full flow", () => {
     { timeout: 1_200_000 },
     async () => {
       const c = client!;
-      const sid = vdbSecretId!;
-
       const createResp = await c.vectorStore.collections.create({
         collection: buildCollection(COLLECTION_NAME),
-        vectorDbConfig: buildVdbConfig(sid),
+        vectorDbConfig: buildVdbConfig(),
       });
       expect(typeof createResp).toBe("object");
       expect((createResp as any).success).toBe(true);
@@ -95,7 +68,7 @@ describe("e2e vector_store — full flow", () => {
         bucketUid: BUCKET_UID!,
         collectionName: COLLECTION_NAME,
         fieldMappings: buildFieldMappings(),
-        vectorDbConfig: buildVdbConfig(sid),
+        vectorDbConfig: buildVdbConfig(),
       });
       const jobUid = (submit as Record<string, unknown>).job_uid as string;
       expect(typeof jobUid).toBe("string");
@@ -104,7 +77,7 @@ describe("e2e vector_store — full flow", () => {
 
       // Strict wait: only "completed" is acceptable.
       const final = await waitForTerminalStatus<Record<string, unknown>>({
-        fetchStatus: () => c.vectorStore.jobs.get(jobUid),
+        fetchStatus: () => c.vectorStore.jobs.get(BUCKET_UID!, jobUid),
         extractStatus: (r) => {
           const s = (r as Record<string, unknown>).status;
           return typeof s === "string" ? s : undefined;

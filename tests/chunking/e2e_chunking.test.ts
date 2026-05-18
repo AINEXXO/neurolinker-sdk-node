@@ -24,7 +24,7 @@ describe("e2e chunking — full flow", () => {
       // Strict wait: only "completed" is acceptable. We want byte-level
       // verification of outputs, so "pending" / "failed" must fail the test.
       const final = await waitForTerminalStatus<Record<string, unknown>>({
-        fetchStatus: () => client.chunking.jobs.get(jobUid),
+        fetchStatus: () => client.chunking.jobs.get(BUCKET_UID!, jobUid),
         extractStatus: (r) => {
           const s = (r as Record<string, unknown>).status;
           return typeof s === "string" ? s : undefined;

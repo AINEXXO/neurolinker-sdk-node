@@ -36,7 +36,7 @@ const validCollection = {
 
 const validVdb = {
   uri: "https://your-cluster.zilliz.com",
-  secretId: "sec-1",
+  apiKey: "sk-1",
 };
 
 describe("vectorStore.collections.create", () => {
@@ -65,14 +65,12 @@ describe("vectorStore.collections.create", () => {
           {
             name: "chunk_id",
             dtype: "text",
-            distance: "cosine",
             is_primary: true,
             options: {},
           },
           {
             name: "content",
             dtype: "text",
-            distance: "cosine",
             is_primary: false,
             options: {},
           },
@@ -89,7 +87,7 @@ describe("vectorStore.collections.create", () => {
       vector_db_config: {
         uri: "https://your-cluster.zilliz.com",
         timeout: 300,
-        secret_id: "sec-1",
+        api_key: "sk-1",
       },
       database: "main",
     });
@@ -155,7 +153,7 @@ describe("vectorStore.jobs", () => {
     expect((received as any).vector_db_config).toEqual({
       uri: validVdb.uri,
       timeout: 300,
-      secret_id: validVdb.secretId,
+      api_key: validVdb.apiKey,
     });
     expect((received as any).database).toBe("");
   });
@@ -196,7 +194,7 @@ describe("vectorStore.jobs", () => {
   it("get + wait flow", async () => {
     let attempts = 0;
     server.use(
-      http.get(`${BASE_URL}/v1/vector-store/jobs/vload-2`, () => {
+      http.get(`${BASE_URL}/v1/vector-store/jobs/b-1/vload-2`, () => {
         attempts += 1;
         if (attempts < 2) {
           return HttpResponse.json({ job_uid: "vload-2", status: "running" });
@@ -206,10 +204,10 @@ describe("vectorStore.jobs", () => {
     );
 
     const client = makeClient();
-    const got = await client.vectorStore.jobs.get("vload-2");
+    const got = await client.vectorStore.jobs.get("b-1", "vload-2");
     expect((got as any).status).toBe("running");
 
-    const final = await client.vectorStore.jobs.wait("vload-2");
+    const final = await client.vectorStore.jobs.wait("b-1", "vload-2");
     expect((final as any).status).toBe("completed");
   });
 });

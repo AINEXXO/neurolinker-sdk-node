@@ -1,6 +1,6 @@
 import { waitForTerminalStatus } from "../polling.js";
 import { DocumentsResource } from "./documents.js";
-import { DocumentUpload, ExtractResource } from "./extract.js";
+import { DocumentUpload, EnrichmentMode, ExtractResource } from "./extract.js";
 import { extractStatus, extractionTimeoutSuffix } from "./helpers.js";
 import { StatusResource } from "./status.js";
 import { TasksResource } from "./tasks.js";
@@ -41,6 +41,7 @@ export class ExtractionModule {
     urls?: string[];
     alias?: string;
     description?: string;
+    enrichmentMode?: EnrichmentMode;
   }): Promise<Record<string, unknown>> {
     return await this._extract.extract(args);
   }

@@ -38,32 +38,3 @@ describe("e2e management — buckets CRUD", () => {
     }
   });
 });
-
-describe("e2e management — secrets CRUD", () => {
-  it.skipIf(!TOKEN)("create / list / update / delete a secret", async () => {
-    const client = NeuroLinker.fromEnv();
-    const name = uniqueName("sdk_e2e_secret");
-    let secretId: string | undefined;
-
-    try {
-      const created = await client.management.secrets.create({
-        name,
-        value: "initial-value",
-      });
-      secretId =
-        ((created as Record<string, unknown>).secret_id as string) ||
-        ((created as Record<string, unknown>).id as string);
-      expect(typeof secretId).toBe("string");
-      expect(secretId.length).toBeGreaterThan(0);
-
-      const listed = await client.management.secrets.list();
-      expect(typeof listed).toBe("object");
-
-      await client.management.secrets.update(secretId, { value: "rotated-value" });
-    } finally {
-      if (secretId) {
-        await client.management.secrets.delete(secretId);
-      }
-    }
-  });
-});

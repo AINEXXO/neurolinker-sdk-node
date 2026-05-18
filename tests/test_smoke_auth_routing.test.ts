@@ -9,6 +9,7 @@ import { NeuroLinker, NeuroLinkerAPIError } from "../src/index.js";
 
 const TOKEN = process.env.NEUROLINKER_API_KEY;
 const BASE_URL = process.env.NEUROLINKER_BASE_URL;
+const BUCKET_UID = process.env.NEUROLINKER_TEST_BUCKET_UID;
 
 const FAKE_UID = "00000000-0000-0000-0000-000000000000";
 
@@ -29,13 +30,13 @@ describe("smoke — auth + routing across all modules", () => {
     },
   );
 
-  it.skipIf(!TOKEN)(
+  it.skipIf(!TOKEN || !BUCKET_UID)(
     "chunking.jobs.get(<fake uid>) returns 404 via NeuroLinkerAPIError",
     async () => {
       const client = NeuroLinker.fromEnv();
       let caught: NeuroLinkerAPIError | undefined;
       try {
-        await client.chunking.jobs.get(FAKE_UID);
+        await client.chunking.jobs.get(BUCKET_UID!, FAKE_UID);
       } catch (e) {
         if (e instanceof NeuroLinkerAPIError) caught = e;
         else throw e;
@@ -45,13 +46,13 @@ describe("smoke — auth + routing across all modules", () => {
     },
   );
 
-  it.skipIf(!TOKEN)(
+  it.skipIf(!TOKEN || !BUCKET_UID)(
     "embedding.jobs.get(<fake uid>) returns 404 via NeuroLinkerAPIError",
     async () => {
       const client = NeuroLinker.fromEnv();
       let caught: NeuroLinkerAPIError | undefined;
       try {
-        await client.embedding.jobs.get(FAKE_UID);
+        await client.embedding.jobs.get(BUCKET_UID!, FAKE_UID);
       } catch (e) {
         if (e instanceof NeuroLinkerAPIError) caught = e;
         else throw e;
@@ -61,13 +62,13 @@ describe("smoke — auth + routing across all modules", () => {
     },
   );
 
-  it.skipIf(!TOKEN)(
+  it.skipIf(!TOKEN || !BUCKET_UID)(
     "vectorStore.jobs.get(<fake uid>) returns 404 via NeuroLinkerAPIError",
     async () => {
       const client = NeuroLinker.fromEnv();
       let caught: NeuroLinkerAPIError | undefined;
       try {
-        await client.vectorStore.jobs.get(FAKE_UID);
+        await client.vectorStore.jobs.get(BUCKET_UID!, FAKE_UID);
       } catch (e) {
         if (e instanceof NeuroLinkerAPIError) caught = e;
         else throw e;

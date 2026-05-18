@@ -94,20 +94,20 @@ describe("chunking.jobs.create", () => {
 describe("chunking.jobs.get / wait", () => {
   it("get returns the body", async () => {
     server.use(
-      http.get(`${BASE_URL}/v1/chunk/jobs/job-1`, () =>
+      http.get(`${BASE_URL}/v1/chunk/jobs/b-1/job-1`, () =>
         HttpResponse.json({ job_uid: "job-1", status: "running" }),
       ),
     );
 
     const client = makeClient();
-    const resp = await client.chunking.jobs.get("job-1");
+    const resp = await client.chunking.jobs.get("b-1", "job-1");
     expect(resp).toEqual({ job_uid: "job-1", status: "running" });
   });
 
   it("wait polls until terminal status", async () => {
     let attempts = 0;
     server.use(
-      http.get(`${BASE_URL}/v1/chunk/jobs/job-2`, () => {
+      http.get(`${BASE_URL}/v1/chunk/jobs/b-1/job-2`, () => {
         attempts += 1;
         if (attempts < 3) {
           return HttpResponse.json({ job_uid: "job-2", status: "running" });
@@ -117,7 +117,7 @@ describe("chunking.jobs.get / wait", () => {
     );
 
     const client = makeClient();
-    const resp = await client.chunking.jobs.wait("job-2");
+    const resp = await client.chunking.jobs.wait("b-1", "job-2");
     expect(resp).toEqual({ job_uid: "job-2", status: "completed" });
     expect(attempts).toBeGreaterThanOrEqual(3);
   });
@@ -125,7 +125,7 @@ describe("chunking.jobs.get / wait", () => {
   it("wait tolerates 404 during early polling", async () => {
     let attempts = 0;
     server.use(
-      http.get(`${BASE_URL}/v1/chunk/jobs/job-3`, () => {
+      http.get(`${BASE_URL}/v1/chunk/jobs/b-1/job-3`, () => {
         attempts += 1;
         if (attempts === 1) {
           return HttpResponse.json({ detail: "not yet" }, { status: 404 });
@@ -135,7 +135,7 @@ describe("chunking.jobs.get / wait", () => {
     );
 
     const client = makeClient();
-    const resp = await client.chunking.jobs.wait("job-3");
+    const resp = await client.chunking.jobs.wait("b-1", "job-3");
     expect(resp).toEqual({ job_uid: "job-3", status: "completed" });
   });
 });

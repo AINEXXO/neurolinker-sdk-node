@@ -10,13 +10,11 @@ NeuroLinker is a document intelligence service by Ainexxo S.R.L. that automates 
 - [Client](#client)
 - [Extraction](#extraction)
 - [Management](#management)
-- [Bringing your own keys (BYOK)](#bringing-your-own-keys-byok)
 - [Chunking](#chunking)
 - [Embedding](#embedding)
 - [Vector Store](#vector-store)
 - [End-to-end pipeline](#end-to-end-pipeline)
 - [Error handling](#error-handling)
-- [Migrating from 0.1.x](#migrating-from-01x)
 - [Support](#support)
 - [License](#license)
 
@@ -26,7 +24,7 @@ NeuroLinker is a document intelligence service by Ainexxo S.R.L. that automates 
 npm install neurolinker-sdk
 ```
 
-Requires Node.js 18+. Works with both ESM and CommonJS, and ships TypeScript types.
+Requires Node.js 18+.
 
 ## Quick start
 
@@ -42,7 +40,7 @@ Or store it in a `.env` file at the project root — load it once at startup and
 import "dotenv/config"; // reads .env into process.env
 ```
 
-**ESM / TypeScript**
+**Async**
 
 ```ts
 import { NeuroLinker } from "neurolinker-sdk";
@@ -55,7 +53,7 @@ const clientFromEnv = NeuroLinker.fromEnv();
 const tasksFromEnv = await clientFromEnv.extraction.listTasks();
 ```
 
-**CommonJS**
+The same flow works in CommonJS:
 
 ```js
 const { NeuroLinker } = require("neurolinker-sdk");
@@ -115,9 +113,9 @@ Two concepts to keep in mind:
 Async client. `token` is required; `baseUrl` defaults to `https://neurolinker.api.ainexxo.com`. Default values: `timeoutS=600`, `pollIntervalS=2`, `pollMaxIntervalS=10`.
 
 - `NeuroLinker.fromEnv({ timeoutS?, pollIntervalS?, pollMaxIntervalS? })`
-Loads `NEUROLINKER_API_KEY` from the environment. Reads optional `NEUROLINKER_BASE_URL`, `NEUROLINKER_E2E_TIMEOUT_S`, `NEUROLINKER_E2E_POLL_INTERVAL_S`, `NEUROLINKER_E2E_POLL_MAX_INTERVAL_S` as well. Any parameter passed explicitly to `fromEnv(...)` overrides the corresponding env var.
+Loads `NEUROLINKER_API_KEY` from the environment. If present, `NEUROLINKER_BASE_URL`, `NEUROLINKER_E2E_TIMEOUT_S`, `NEUROLINKER_E2E_POLL_INTERVAL_S`, and `NEUROLINKER_E2E_POLL_MAX_INTERVAL_S` are also read; explicit overrides passed to `fromEnv(...)` win over env vars.
 
-> The SDK is async-only — every method returns a `Promise`. There is no separate sync client (Node.js is natively asynchronous, so a sync flavour would not be idiomatic).
+The SDK is async-only — every method returns a `Promise`.
 
 ### Modules
 
@@ -126,7 +124,7 @@ The SDK groups the API into five modules reachable as attributes on the client:
 | Module | Purpose |
 |---|---|
 | `extraction` | PDF extraction — full and field-based |
-| `management` | Buckets and secrets CRUD |
+| `management` | Bucket CRUD |
 | `chunking` | Chunking jobs |
 | `embedding` | Embedding jobs |
 | `vectorStore` | Vector-store collections and load jobs |
@@ -142,11 +140,11 @@ PDF processing — full extraction or schema-based field extraction. The two pip
 
 Both reserve credits at submit time on a per-page basis (see the platform documentation for pricing).
 
-- `client.extraction.extract({ documents?, urls?, alias?, description? })`
-Submit a full-extraction job. Provide **either** `documents: [{ filename: "file.pdf", content: <Buffer> }]` (local PDFs uploaded as bytes) **or** `urls: ["https://..."]` (PDF URLs the backend downloads). The two are mutually exclusive — exactly one is required.
+- `client.extraction.extract({ documents?, urls?, alias?, description?, enrichmentMode? })`
+Submit a full-extraction job. Provide **either** `documents: [{ filename: "file.pdf", content: <Buffer> }]` (local PDF) **or** `urls: ["https://..."]` (PDF URLs). The two are mutually exclusive — exactly one is required. Optional `enrichmentMode` is `"base"` (Picture/Table get description only) or `"turbo"` (description + `extracted_text` + `legend` with neighbouring-page context). Omit to use the backend default.
 
 - `client.extraction.extractFields({ jsonSchema, documents?, urls?, alias?, description? })`
-Submit a field-extraction job. `jsonSchema` is required and must follow JSON Schema Draft 7 (supported subset). Provide **either** `documents: [{ filename, content }]` (local PDFs) **or** `urls: ["https://..."]` (PDF URLs). Same XOR rule as `extract`. Example:
+Submit a field-extraction job. `jsonSchema` is required and must follow JSON Schema Draft 7 (supported subset). Provide **either** `documents: [{ filename: "file.pdf", content: <Buffer> }]` (local PDFs) **or** `urls: ["https://..."]` (PDF URLs). Same XOR rule as `extract`. Example:
 
 ```ts
 await client.extraction.extractFields({
@@ -154,16 +152,16 @@ await client.extraction.extractFields({
     type: "object",
     properties: {
       invoice_number: { type: "string" },
-      issue_date:     { type: "string", description: "ISO date (YYYY-MM-DD)" },
-      total_amount:   { type: "number" },
+      issue_date: { type: "string", description: "ISO date (YYYY-MM-DD)" },
+      total_amount: { type: "number" },
       line_items: {
         type: "array",
         items: {
           type: "object",
           properties: {
             description: { type: "string" },
-            quantity:    { type: "integer" },
-            unit_price:  { type: "number" },
+            quantity: { type: "integer" },
+            unit_price: { type: "number" },
           },
         },
       },
@@ -231,10 +229,7 @@ Some retrieval methods accept an optional filter to keep only specific kinds of 
 
 ## Management
 
-CRUD for the two resources that glue the extraction output to the rest of the pipeline.
-
-- **Buckets** are the persistent containers that hold extracted documents for chunking, embedding, and vector-store jobs. Those modules always read from a `bucket_uid`, never from raw extraction request UIDs — create a bucket once, attach extraction outputs to it with `buckets.addSources`, and reuse it across runs.
-- **Secrets** are managed credentials stored in Google Secret Manager. You upload an external API key or vector-DB token once, get back an opaque `secret_id`, and reference that id (instead of the raw value) in every job. See the [BYOK](#bringing-your-own-keys-byok) section for the full flow.
+CRUD for **buckets**, the persistent containers that hold extracted documents for chunking, embedding, and vector-store jobs. Those modules always read from a `bucket_uid`, never from raw extraction request UIDs — create a bucket once, attach extraction outputs to it with `buckets.addSources`, and reuse it across runs.
 
 - `client.management.buckets.create({ name: "my-bucket" })`
 Create a new bucket.
@@ -251,66 +246,24 @@ Delete a bucket.
 - `client.management.buckets.addSources(bucketUid, { sources: [{ requestUid: "...", docUids: [...] }, ...] })`
 Attach extraction request UIDs (and optionally specific document UIDs) to a bucket. After this call the bucket is a valid input for chunking / embedding / vector-store jobs. Returns `void`.
 
-- `client.management.secrets.create({ name: "my-secret", value: "..." })`
-Create a secret in Google Secret Manager. Naming is namespaced server-side as `neurolinker__{user_uid}__{name}`.
-
-- `client.management.secrets.list()`
-List secrets owned by the API key.
-
-- `client.management.secrets.update(secretId, { value: "..." })`
-Update an existing secret. Returns `void`.
-
-- `client.management.secrets.delete(secretId)`
-Delete a secret. Returns `void`.
-
-> Secret values are redacted from any error response before being raised, so the value never appears in `NeuroLinkerAPIError` text or JSON.
-
-## Bringing your own keys (BYOK)
-
-Some modules call **third-party services on your behalf** and need the corresponding credential:
-
-| Module | When you need a credential |
-|---|---|
-| `embedding` | Only if you target an **external provider** (Voyage, Jina). Internal models returned by `embedding.listModels()` are hosted by Ainexxo and need no key. |
-| `vectorStore` | Always — the vector database cluster is yours, you supply its connection token. See [Vector Store](#vector-store) for the list of supported databases. |
-
-Upload the value once with `secrets.create(...)`, get an opaque id back, and reference it in every job via `secretId`. The actual value never leaves Google Secret Manager — only the id flows through the API. Rotation, audit log and per-tenant isolation come for free.
-
-```ts
-import { NeuroLinker } from "neurolinker-sdk";
-
-const client = NeuroLinker.fromEnv();
-
-// Store each third-party credential once — do this once, then reuse the returned secret_id
-const vdbSid = (await client.management.secrets.create({
-  name: "my_vdb_token",
-  value: "<your-vector-db-token>",
-})).secret_id as string;
-
-const voyageSid = (await client.management.secrets.create({
-  name: "my_voyage_key",
-  value: "<your-voyage-key>",
-})).secret_id as string;
-```
-
 ## Chunking
 
 Chunking jobs over a bucket.
 
 - `client.chunking.jobs.create({ bucketUid, chunking })`
-Submit a chunking job. Pass an object matching one of the three chunking config shapes — `SectionGreedyConfig`, `MdHeaderLevelConfig`, or `BlockWindowConfig` — described below.
+Submit a chunking job. Pass a config matching one of the three chunking schemas — `SectionGreedyConfig`, `MdHeaderLevelConfig`, or `BlockWindowConfig` — described below.
 
-- `client.chunking.jobs.get(jobUid)`
+- `client.chunking.jobs.get(bucketUid, jobUid)`
 Retrieve the current state of a chunking job.
 
-- `client.chunking.jobs.wait(jobUid, { timeoutS?, pollIntervalS?, pollMaxIntervalS? })`
+- `client.chunking.jobs.wait(bucketUid, jobUid, { timeoutS?, pollIntervalS?, pollMaxIntervalS? })`
 Poll until terminal status, with the same overrides as `waitForRequest`.
 
 - `client.chunking.analyze(bucketUid)`
 Run statistical analysis on a bucket **after a chunking job has completed** — returns chunk-size distribution and a base64-encoded plot built from the existing output. Useful for inspecting the result of a chunking pass and deciding whether to re-run with adjusted parameters.
 
 - `client.chunking.results(bucketUid)`
-Fetch the chunking output files for a bucket. Returns `Record<string, Buffer>` keyed by filename. File content transits directly between the client and storage, not through the API server.
+Fetch the chunking output files for a bucket. Returns a `Record<string, Buffer>`. File content transits directly between the client and storage, not through the API server.
 
 ### Choosing a chunking strategy
 
@@ -319,10 +272,8 @@ Three strategies are available — pick based on your document structure:
 | Strategy | Best for | What it does |
 |---|---|---|
 | `SectionGreedyConfig` | Well-structured documents (papers, reports, manuals). **Recommended default.** | Respects natural section boundaries and packs each chunk to a token budget (`tMin`–`tMax`) |
-| `MdHeaderLevelConfig` | FAQ-style or hierarchical knowledge bases where chunks should map 1:1 to headings | Splits at heading boundaries up to `chunkAtLevel` (1..6) |
+| `MdHeaderLevelConfig` | FAQ-style or hierarchical knowledge bases where chunks should map 1:1 to headings | Splits at heading boundaries up to `chunkAtLevel` |
 | `BlockWindowConfig` | Unstructured or continuous text (transcripts, plain narratives) where natural boundaries don't help | Sliding window over blocks with configurable overlap |
-
-Choosing is iterative: run a first pass with reasonable defaults, then call `client.chunking.analyze(bucketUid)` to inspect the resulting chunk-size distribution and re-run with adjusted `tMin`/`tMax` (or a different strategy) if needed. A new chunking job overwrites the previous output for the same bucket.
 
 Example configurations:
 
@@ -331,42 +282,34 @@ import {
   BlockWindowConfig,
   MdHeaderLevelConfig,
   SectionGreedyConfig,
-  type ChunkingConfigInput,
 } from "neurolinker-sdk";
 
 // (1) Structure-aware: respects natural sections, packs each chunk to a token budget.
-const sectionGreedy: ChunkingConfigInput = {
+SectionGreedyConfig.parse({
   method: "section_greedy",
   tMin: 200,
-  tMax: 1500,                              // token budget per chunk
+  tMax: 1500,                               // token budget per chunk
   modelName: "Alibaba-NLP/gte-large-en-v1.5", // tokenizer used for the budget
   parseFigures: true,
   parseTables: true,
   parseHeaders: true,
   parseFooters: false,
-};
+});
 
-// (2) Markdown-header-aware: splits at headings up to a given level (1..6).
-const mdHeader: ChunkingConfigInput = {
+// (2) Markdown-header-aware: splits at headings up to a given level.
+MdHeaderLevelConfig.parse({
   method: "md_header_level",
   chunkAtLevel: 2,
-};
+});
 
 // (3) Sliding window over blocks with configurable overlap.
-const blockWindow: ChunkingConfigInput = {
+BlockWindowConfig.parse({
   method: "block_window",
   tMax: 1000,
   overlapBlocks: 2,
-  overlapMode: "within_budget",            // or "extra_budget"
-};
-
-// Use a schema directly to validate runtime input:
-SectionGreedyConfig.parse(sectionGreedy);
-
-await client.chunking.jobs.create({ bucketUid: "<bucket>", chunking: sectionGreedy });
+  overlapMode: "within_budget", // or "extra_budget"
+});
 ```
-
-Each config is mutually exclusive — `chunkAtLevel` only exists on `MdHeaderLevelConfig`, `overlap*` only on `BlockWindowConfig`. The discriminator is the `method` field on each config.
 
 ## Embedding
 
@@ -384,111 +327,99 @@ The available internal models and the vector types each one supports are listed 
 
 ### Available fields per modality
 
-`inputs` is the list of chunk fields concatenated before being passed to the embedding model. Each field is only valid on the modalities marked below — using a field on the wrong modality is rejected at submit time.
-
-**Sensible defaults**: `["content"]` for text modality; `["caption", "detailed_description"]` for image and table modalities.
+`inputs` is the list of chunk fields concatenated before being passed to the embedding model. Each field is only valid on the content types marked below — using a field on the wrong modality is rejected at submit time.
 
 | Field | Text | Image | Table | Description |
 |---|:---:|:---:|:---:|---|
-| `content` | ✓ | | | Main text content of the chunk |
-| `caption` | ✓ | ✓ | ✓ | Figure or table caption |
-| `detailed_description` | ✓ | ✓ | ✓ | LLM-generated semantic description |
-| `extracted_text` | ✓ | ✓ | | OCR text extracted from the element |
-| `data` | ✓ | | ✓ | Table data in key:value format |
-| `aliases` | ✓ | ✓ | ✓ | Symbol/abbreviation mappings |
-| `header_path` | ✓ | | | Parent header hierarchy leading to this chunk |
-| `image_base64` | | ✓ | | Base64-encoded image (required for vision models) |
+| `content` | ✓ | | ✓ | Main text payload for text chunks and table items |
+| `description` | | ✓ | ✓ | Semantic description generated for images/tables |
+| `extracted_text` | | ✓ | | OCR text extracted from the image |
+| `data` | | | ✓ | Structured table payload flattened for embedding |
+| `legend` | | ✓ | ✓ | Inline legend / explanatory note associated with the element |
+| `header_path` | ✓ | ✓ | ✓ | Parent header hierarchy prepended when requested |
+| `image_base64` | | ✓ | | Base64-encoded image bytes for vision-capable models |
 
 ### Methods
 
-- `client.embedding.jobs.create({ bucketUid, modalities })`
-Submit an embedding job. Pass an `EmbeddingModalities` instance describing which modalities to embed (text / image / table) and which dense / sparse vectors to compute per modality.
+- `client.embedding.jobs.create({ bucketUid, embeddings })`
+Submit an embedding job. Pass a flat list of `Content` blocks describing which content to embed (text / image / table), which chunk fields to use as input, and which dense / sparse vectors to compute.
 
-- `client.embedding.jobs.get(jobUid)`
+- `client.embedding.jobs.get(bucketUid, jobUid)`
 Retrieve the current state of an embedding job.
 
-- `client.embedding.jobs.wait(jobUid, { timeoutS?, pollIntervalS?, pollMaxIntervalS? })`
+- `client.embedding.jobs.wait(bucketUid, jobUid, { timeoutS?, pollIntervalS?, pollMaxIntervalS? })`
 Poll until terminal status.
 
 - `client.embedding.listModels()`
 List the embedding models available on the backend.
 
 - `client.embedding.results(bucketUid)`
-Fetch the embedding output files for a bucket. Same shape as `chunking.results` (`Record<string, Buffer>`).
+Fetch the embedding output files for a bucket. Same shape as `chunking.results`.
 
-An `EmbeddingModalities` instance is a nested structure: up to three modalities (`text` / `image` / `table`), each with `dense` and/or `sparse` vectors, each referencing a model and the chunk fields to use as input.
+The primary Node SDK API is a flat list of `Content` entries. Each `Content` block declares a `contentType`, the `inputs` to concatenate, and one or more `EmbeddingVector`s to compute with that same input set. If you need different inputs for the same modality, create multiple `Content` entries with the same `contentType`.
 
 ```ts
-import {
-  type EmbeddingModalitiesInput,
-  NeuroLinker,
-} from "neurolinker-sdk";
+import { Content, EmbeddingVector } from "neurolinker-sdk";
 
-const client = NeuroLinker.fromEnv();
+const textDense = EmbeddingVector.parse({
+  vectorType: "dense",
+  fieldName: "text_dense",
+  modelName: "ainexxo-bge-m3",
+});
 
-// Use listModels() to discover available internal models
-const models = await client.embedding.listModels();
-const model = (models.models as Array<{ name: string; endpoint: string; vector_types?: string[] }>).find(
-  (m) => (m.vector_types ?? []).includes("dense"),
-)!;
+const textSparse = EmbeddingVector.parse({
+  vectorType: "sparse",
+  fieldName: "text_sparse",
+  modelName: "ainexxo-splade",
+});
 
-// Single text dense embedding using an internal model
-const modalities: EmbeddingModalitiesInput = {
-  text: {
-    vectors: {
-      dense: {
-        vectorName: "text_dense", // free name — referenced later as source in fieldMappings
-        model: { endpoint: model.endpoint, modelName: model.name },
-        inputs: ["content"],      // chunk fields to embed; default = []
-      },
-    },
-  },
-};
+const imageDense = EmbeddingVector.parse({
+  vectorType: "dense",
+  fieldName: "image_dense",
+  modelName: "jina_ai/jina-embeddings-v4",
+  apiKey: "jina_api_key",
+});
 
-// Alternative: multi-modal — text dense + sparse, image dense, table dense
-const multimodal: EmbeddingModalitiesInput = {
-  text: {
-    vectors: {
-      dense: {
-        vectorName: "text_dense",
-        model: { endpoint: model.endpoint, modelName: model.name },
-        inputs: ["content"],
-      },
-      sparse: {
-        vectorName: "text_sparse",
-        model: { endpoint: model.endpoint, modelName: model.name },
-        inputs: ["content"],
-      },
-    },
-  },
-  image: {
-    vectors: {
-      dense: {
-        vectorName: "image_dense",
-        model: { endpoint: model.endpoint, modelName: model.name },
-        inputs: ["caption", "detailed_description"],
-      },
-    },
-  },
-  table: {
-    vectors: {
-      dense: {
-        vectorName: "table_dense",
-        model: { endpoint: model.endpoint, modelName: model.name },
-        inputs: ["caption", "detailed_description", "data"],
-      },
-    },
-  },
-};
+const embeddings = [
+  Content.parse({
+    contentType: "text",
+    inputs: ["content"],
+    vectors: [textDense, textSparse],
+  }),
+  Content.parse({
+    contentType: "image",
+    inputs: ["image_base64", "description"],
+    vectors: [imageDense],
+  }),
+  Content.parse({
+    contentType: "table",
+    inputs: ["content", "description", "data"],
+    vectors: [
+      EmbeddingVector.parse({
+        vectorType: "dense",
+        fieldName: "table_dense",
+        modelName: "text-embedding-3-small",
+        apiKey: "sk_openai_api_key",
+      }),
+    ],
+  }),
+];
+
+await client.embedding.jobs.create({
+  bucketUid: "your_bucket_uid",
+  embeddings,
+});
 ```
 
 Conventions worth knowing:
-- `vectorName` cannot start with `item_` or `chunk_` — those prefixes are reserved for internal fields. The name you pick is what you reference later as `source` in a `FieldMapping` when loading into a vector store, so keep it stable across runs of the same project.
-- For external providers add `secretId: "..."` on the `model` object — see the [Bringing your own keys (BYOK)](#bringing-your-own-keys-byok) section. **Currently supported external embedding providers** (auto-detected from endpoint domain): **Voyage** and **Jina**. `ModelRef` is passthrough, so any provider-specific extras (e.g. Voyage's `input_type`) are forwarded as-is.
+- `fieldName` cannot start with `item_` or `chunk_` — those prefixes are reserved for internal fields. The name you pick is what you reference later as `source` in a `FieldMapping` when loading into a vector store, so keep it stable across runs of the same project.
+- `Content.vectors` is the inner list of vectors to compute for that content block.
+- Internal Ainexxo models use `modelName: "ainexxo-..."` and omit `apiKey`.
+- External LiteLLM models use the LiteLLM `modelName` as-is and carry their own `apiKey` directly on each `EmbeddingVector`.
 
 ## Vector Store
 
-Vector-database collections and vector-load jobs. Bring your own cluster — the SDK upserts your embeddings into a collection on the vector database you specify in `VectorDBConfig`.
+Bring your own cluster — the SDK upserts your embeddings into a collection on the vector database you specify in `VectorDBConfig`.
 
 **Currently supported vector databases:**
 
@@ -496,18 +427,18 @@ Vector-database collections and vector-load jobs. Bring your own cluster — the
 - Qdrant
 - Pinecone
 
-You don't pass a `provider` field — the SDK figures it out from the URI of your cluster. Just supply the URI and a `secretId` referencing the cluster's connection token (uploaded once via `secrets.create`, see [BYOK](#bringing-your-own-keys-byok)).
+You don't pass a `provider` field — it is detected from the URI of your cluster. Supply the URI and the cluster's connection token as `apiKey` on `VectorDBConfig`. The same `VectorDBConfig` is used by both `collections.create(...)` and `jobs.create(...)`.
 
 - `client.vectorStore.collections.create({ collection, vectorDbConfig, database? })`
-Create a vector-store collection. Idempotent — returns `already_existed: true` if it already exists. `collection` accepts a `CollectionSchema` shape (Zod-validated). `vectorDbConfig` is a `VectorDBConfig` shape selecting the backend and its connection details.
+Create a vector-store collection. Idempotent — returns `already_existed=true` if it already exists. `collection` accepts a `CollectionSchema` (or plain object). `vectorDbConfig` is a `VectorDBConfig` (or plain object) selecting the backend and its connection details. `database` is optional and provider-specific — set it according to your provider's documentation; Qdrant requires it empty.
 
 - `client.vectorStore.jobs.create({ bucketUid, collectionName, fieldMappings, vectorDbConfig, database? })`
-Submit a vector-load job — reads the embedding output for `bucketUid` and writes it into `collectionName`. `fieldMappings` describes how chunk fields map to collection fields.
+Submit a vector-load job — reads the embedding output for `bucketUid` and writes it into `collectionName`. `fieldMappings` describes how chunk fields map to collection fields. `database` follows the same rule as above.
 
-- `client.vectorStore.jobs.get(jobUid)`
+- `client.vectorStore.jobs.get(bucketUid, jobUid)`
 Retrieve the current state of a vector-load job.
 
-- `client.vectorStore.jobs.wait(jobUid, { timeoutS?, pollIntervalS?, pollMaxIntervalS? })`
+- `client.vectorStore.jobs.wait(bucketUid, jobUid, { timeoutS?, pollIntervalS?, pollMaxIntervalS? })`
 Poll until terminal status.
 
 Loading embeddings into a vector database needs three pieces: a `CollectionSchema` (the target collection's structure, made of `FieldDef` columns), a `VectorDBConfig` (cluster connection details), and a list of `FieldMapping`s (how to populate the collection columns from the embedded records).
@@ -515,7 +446,7 @@ Loading embeddings into a vector database needs three pieces: a `CollectionSchem
 The `source` of a `FieldMapping` references one of three namespaces. The data has two levels:
 
 - **Parent chunk** — produced by the chunking step. Carries the full multimodal content of a section of the document (text plus inline figure/table descriptions). Typically what you feed to the LLM at retrieval time.
-- **Embedding items** — derived from the parent, one per modality present in the chunk: a text item with the chunk's text content, one image item per figure (with its caption, image bytes, OCR text…), one table item per table (with its data and description). The vector embeddings live on these items.
+- **Embedding items** — derived from the parent, one per modality present in the chunk: a text item with the chunk's text content, one image item per figure (with its description, image bytes, OCR text, legend…), one table item per table (with its content, data, and description). The vector embeddings live on these items.
 
 For example, a chunk containing 2 figures and 1 table produces 4 items (1 text + 2 image + 1 table). At query time you match against the items' vectors but typically retrieve the parent's `chunk_content` to give the LLM the surrounding context.
 
@@ -523,7 +454,7 @@ For example, a chunk containing 2 figures and 1 table produces 4 items (1 text +
 |---|---|---|
 | `chunk_*` | Per-chunk fields — typically the **context you feed to the LLM** at retrieval time. | `chunk_id`, `chunk_source_file`, `chunk_content` (full chunk, multimodal), `chunk_header_path`, `chunk_pages` |
 | `item_*` | Per-item fields — the row you upsert. | `item_id` (primary key), `item_element_type` (`text` / `image` / `table`) |
-| `<vector_name>` | The dense or sparse vector itself. | `text_dense`, `text_sparse` (the name you picked in `EmbeddingModalities`) |
+| `<fieldName>` | The dense or sparse vector itself. | `text_dense`, `text_sparse` (the name you picked in `EmbeddingVector`) |
 
 `chunk_*` fields — available on every chunk regardless of which modality items it produced:
 
@@ -539,46 +470,44 @@ Modality-specific `item_*` fields — each is only present on items of the corre
 
 | Source | Text | Image | Table | Description |
 |---|:---:|:---:|:---:|---|
-| `item_content` | ✓ | | | Text content of the item |
-| `item_caption` | | ✓ | ✓ | Caption of the figure or table |
-| `item_detailed_description` | | ✓ | ✓ | LLM-generated semantic description |
-| `item_extracted_text` | | ✓ | | OCR text from the figure |
-| `item_data` | | | ✓ | Table data in key:value format |
-| `item_aliases` | | ✓ | ✓ | Symbol/abbreviation mappings |
-| `item_url` | | ✓ | | URL of the figure |
+| `item_content` | ✓ | | ✓ | Text content for text items and flattened content for table items |
+| `item_description` | | ✓ | ✓ | Semantic description carried by image/table items |
+| `item_extracted_text` | | ✓ | | OCR text extracted from the image |
+| `item_data` | | | ✓ | Table data in key:value form |
+| `item_legend` | | ✓ | ✓ | Legend / inline explanatory text |
 | `item_image_base64` | | ✓ | | Base64-encoded image bytes |
 
 ```ts
 import {
-  type CollectionSchemaInput,
-  type FieldMappingInput,
-  type VectorDBConfigInput,
+  CollectionSchema,
+  FieldDef,
+  FieldMapping,
+  VectorDBConfig,
 } from "neurolinker-sdk";
 
 // A collection's schema — abstract dtypes, the provider translates them.
-const collection: CollectionSchemaInput = {
+const collection = CollectionSchema.parse({
   name: "my_collection",
   description: "Documents indexed by SDK",
   fields: [
-    { name: "chunk_id",   dtype: "text", isPrimary: true },
-    { name: "content",    dtype: "text" },
-    { name: "text_dense", dtype: "dense_vector", dim: 1024, distance: "cosine" },
+    FieldDef.parse({ name: "chunk_id", dtype: "text", isPrimary: true }),
+    FieldDef.parse({ name: "content", dtype: "text" }),
+    FieldDef.parse({ name: "text_dense", dtype: "dense_vector", dim: 1024, distance: "cosine" }),
   ],
-};
+});
 
 // Map each collection field to a source from one of the three namespaces above.
-const fieldMappings: FieldMappingInput[] = [
-  { name: "chunk_id",   source: "item_id" },
-  { name: "content",    source: "item_content" },
-  { name: "text_dense", source: "text_dense" }, // matches vectorName above
+const fieldMappings = [
+  FieldMapping.parse({ name: "chunk_id", source: "item_id" }),
+  FieldMapping.parse({ name: "content", source: "item_content" }),
+  FieldMapping.parse({ name: "text_dense", source: "text_dense" }), // matches fieldName above
 ];
 
-// Vector-DB connection — supply your cluster URI and the managed secret id
-// returned by management.secrets.create(...).
-const vdb: VectorDBConfigInput = {
+// Vector-DB connection — supply your cluster URI and its connection token.
+const vdb = VectorDBConfig.parse({
   uri: "https://your-cluster-uri",
-  secretId: "<secret_id from secrets.create>",
-};
+  apiKey: "<your-vector-db-token>",
+});
 
 await client.vectorStore.collections.create({ collection, vectorDbConfig: vdb });
 const loadJob = await client.vectorStore.jobs.create({
@@ -587,10 +516,48 @@ const loadJob = await client.vectorStore.jobs.create({
   fieldMappings,
   vectorDbConfig: vdb,
 });
-await client.vectorStore.jobs.wait(loadJob.job_uid as string);
+await client.vectorStore.jobs.wait("<your-bucket-uid>", loadJob.job_uid as string);
 ```
 
-Supported `dtype` values: `text`, `int`, `float`, `bool`, `json`, `dense_vector` (requires `dim`), `sparse_vector`. Supported `distance` for vectors: `cosine` (default), `dot`, `euclidean`. A collection can have at most one field with `isPrimary: true`.
+Supported `dtype` values: `text`, `int`, `float`, `bool`, `json`, `dense_vector` (requires `dim`), `sparse_vector`. Supported `distance` for `dense_vector`: `cosine` (default), `dot`, `euclidean`. Do not set `distance` on scalar or `sparse_vector` fields. A collection can have at most one field with `isPrimary=true`.
+
+Provider-specific settings live in two places:
+
+- **`FieldDef.options`** — per-field knobs (e.g. Milvus `max_length`).
+- **`CollectionSchema.options`** — collection-wide knobs (e.g. Pinecone serverless `cloud` / `region`).
+
+The common schema contract (`name`, `dtype`, `dim`, `distance`, `isPrimary`) is portable across providers — reach for `options` only when targeting a specific provider's capability. Unknown keys are rejected.
+
+**Field options** (`FieldDef.options`):
+
+| Provider | Applies to | Supported keys | Notes |
+|---|---|---|---|
+| Milvus / Zilliz | all fields | `description` | Adds a description to the field. |
+| Milvus / Zilliz | `text` fields | `max_length`, `enable_analyzer`, `enable_match` | Maximum text length, analyzer, and exact-match indexing. |
+| Milvus / Zilliz | primary key field | `auto_id` | Auto-generate the primary key value. Defaults to `false`. |
+
+Pinecone and Qdrant do not currently take field options.
+
+**Collection options** (`CollectionSchema.options`):
+
+| Provider | Supported keys | Notes |
+|---|---|---|
+| Pinecone | `cloud`, `region` | Serverless index placement. Defaults to `aws` / `us-east-1`. |
+
+Milvus / Zilliz and Qdrant do not currently take collection options.
+
+Example — Pinecone serverless index in `eu-central-1`:
+
+```ts
+const collection = CollectionSchema.parse({
+  name: "neurolinker-docs",
+  options: { cloud: "aws", region: "eu-central-1" },
+  fields: [
+    FieldDef.parse({ name: "chunk_id",   dtype: "text", isPrimary: true }),
+    FieldDef.parse({ name: "text_dense", dtype: "dense_vector", dim: 1024 }),
+  ],
+});
+```
 
 ## End-to-end pipeline
 
@@ -599,93 +566,90 @@ The five modules are designed to compose. The client manually sequences each ste
 ```ts
 import {
   NeuroLinker,
-  extractDocumentIds,
   extractRequestUid,
-  type CollectionSchemaInput,
-  type EmbeddingModalitiesInput,
-  type FieldMappingInput,
-  type VectorDBConfigInput,
+  extractDocumentIds,
+  SectionGreedyConfig,
+  Content,
+  EmbeddingVector,
+  CollectionSchema,
+  FieldDef,
+  FieldMapping,
+  VectorDBConfig,
 } from "neurolinker-sdk";
 
-async function runPipeline(): Promise<void> {
-  const client = NeuroLinker.fromEnv();
+const client = NeuroLinker.fromEnv();
 
-  // 0. Store the vector-DB credential as a managed secret (see BYOK section above)
-  const secretCreated = await client.management.secrets.create({
-    name: "my_vdb_token",
-    value: "<your-vdb-token>",
-  });
-  const secretId = secretCreated.secret_id as string;
+// 1. Extract a PDF
+const submit = await client.extraction.extract({
+  urls: ["https://arxiv.org/pdf/2301.07041"],
+});
+const requestUid = extractRequestUid(submit);
+const status = await client.extraction.waitForRequest(requestUid);
+const docUids = extractDocumentIds(status);
 
-  // 1. Extract a PDF
-  const submit = await client.extraction.extract({
-    urls: ["https://arxiv.org/pdf/2301.07041"],
-  });
-  const requestUid = extractRequestUid(submit);
-  const status = await client.extraction.waitForRequest(requestUid);
-  const docUids = extractDocumentIds(status);
+// 2. Create a bucket and attach the extracted documents
+const bucketUid = (await client.management.buckets.create({ name: "my-bucket" })).bucket_uid as string;
+await client.management.buckets.addSources(bucketUid, {
+  sources: [{ requestUid, docUids }],
+});
 
-  // 2. Create a bucket and attach the extracted documents
-  const bucket = await client.management.buckets.create({ name: "my-bucket" });
-  const bucketUid = bucket.bucket_uid as string;
-  await client.management.buckets.addSources(bucketUid, {
-    sources: [{ requestUid, docUids }],
-  });
+// 3. Chunk
+const chunkJob = await client.chunking.jobs.create({
+  bucketUid,
+  chunking: SectionGreedyConfig.parse({ method: "section_greedy", tMin: 100, tMax: 512 }),
+});
+await client.chunking.jobs.wait(bucketUid, chunkJob.job_uid as string);
 
-  // 3. Chunk
-  const chunkJob = await client.chunking.jobs.create({
-    bucketUid,
-    chunking: { method: "section_greedy", tMin: 100, tMax: 512 },
-  });
-  await client.chunking.jobs.wait(chunkJob.job_uid as string);
+// 4. Embed with an internal model (no key required)
+const models = await client.embedding.listModels();
+const model = (models.models as Array<Record<string, unknown>>).find(
+  (m) => (m.vector_types as string[] | undefined)?.includes("dense"),
+)!;
+const embedJob = await client.embedding.jobs.create({
+  bucketUid,
+  embeddings: [
+    Content.parse({
+      contentType: "text",
+      inputs: ["content"],
+      vectors: [
+        EmbeddingVector.parse({
+          vectorType: "dense",
+          fieldName: "text_dense",
+          modelName: model.name as string,
+        }),
+      ],
+    }),
+  ],
+});
+await client.embedding.jobs.wait(bucketUid, embedJob.job_uid as string);
 
-  // 4. Embed with an internal model (no key required)
-  const models = await client.embedding.listModels();
-  const model = (models.models as Array<{ name: string; endpoint: string; vector_types?: string[] }>).find(
-    (m) => (m.vector_types ?? []).includes("dense"),
-  )!;
-  const modalities: EmbeddingModalitiesInput = {
-    text: {
-      vectors: {
-        dense: {
-          vectorName: "text_dense",
-          model: { endpoint: model.endpoint, modelName: model.name },
-          inputs: ["content"],
-        },
-      },
-    },
-  };
-  const embedJob = await client.embedding.jobs.create({ bucketUid, modalities });
-  await client.embedding.jobs.wait(embedJob.job_uid as string);
-
-  // 5. Create a collection and load the embeddings
-  const vdb: VectorDBConfigInput = {
-    uri: "https://your-cluster-uri",
-    secretId,
-  };
-  const collection: CollectionSchemaInput = {
+// 5. Create a collection and load the embeddings
+const vdb = VectorDBConfig.parse({
+  uri: "https://your-cluster-uri",
+  apiKey: "<your-vector-db-token>",
+});
+await client.vectorStore.collections.create({
+  collection: CollectionSchema.parse({
     name: "my_collection",
     fields: [
-      { name: "chunk_id",   dtype: "text", isPrimary: true },
-      { name: "content",    dtype: "text" },
-      { name: "text_dense", dtype: "dense_vector", dim: 1024 },
+      FieldDef.parse({ name: "chunk_id", dtype: "text", isPrimary: true }),
+      FieldDef.parse({ name: "content", dtype: "text" }),
+      FieldDef.parse({ name: "text_dense", dtype: "dense_vector", dim: 1024 }),
     ],
-  };
-  await client.vectorStore.collections.create({ collection, vectorDbConfig: vdb });
-
-  const fieldMappings: FieldMappingInput[] = [
-    { name: "chunk_id",   source: "item_id" },
-    { name: "content",    source: "item_content" },
-    { name: "text_dense", source: "text_dense" },
-  ];
-  const loadJob = await client.vectorStore.jobs.create({
-    bucketUid,
-    collectionName: "my_collection",
-    fieldMappings,
-    vectorDbConfig: vdb,
-  });
-  await client.vectorStore.jobs.wait(loadJob.job_uid as string);
-}
+  }),
+  vectorDbConfig: vdb,
+});
+const loadJob = await client.vectorStore.jobs.create({
+  bucketUid,
+  collectionName: "my_collection",
+  fieldMappings: [
+    FieldMapping.parse({ name: "chunk_id", source: "item_id" }),
+    FieldMapping.parse({ name: "content", source: "item_content" }),
+    FieldMapping.parse({ name: "text_dense", source: "text_dense" }),
+  ],
+  vectorDbConfig: vdb,
+});
+await client.vectorStore.jobs.wait(bucketUid, loadJob.job_uid as string);
 ```
 
 ## Error handling
@@ -694,30 +658,6 @@ The SDK throws two error types, both importable from `neurolinker-sdk`:
 
 - **`NeuroLinkerAPIError`** — non-2xx response from the API. Carries `statusCode`, `method`, `url`, `responseText`, `responseJson`.
 - **`NeuroLinkerConfigError`** — client-side validation failure (missing config, invalid argument, schema validation).
-
-## Migrating from 0.1.x
-
-`0.2.0` is a breaking release: the flat client API was reorganised into five domain modules to match the Python SDK. Mapping table:
-
-| 0.1.x | 0.2.0 |
-|---|---|
-| `client.tasks.list()` | `client.extraction.listTasks()` |
-| `client.extract.extract(...)` | `client.extraction.extract(...)` |
-| `client.status.request(id)` | `client.extraction.status.request(id)` |
-| `client.status.document(id)` | `client.extraction.status.document(id)` |
-| `client.documents.markdown(...)` etc. | `client.extraction.documents.markdown(...)` etc. |
-| `client.zip.makeZip(...)` | `client.extraction.makeZip(...)` |
-| `client.waitForRequestCompletion({ requestUid, ...overrides })` | `client.extraction.waitForRequest(requestUid, overrides)` |
-| `NeuroLinker.extractRequestUid(...)` (static) | `extractRequestUid(...)` top-level export |
-| `NeuroLinker.extractDocumentIds(...)` (static) | `extractDocumentIds(...)` top-level export |
-
-New in 0.2.0 (no migration needed — additions only):
-
-- `client.extraction.extractFields(...)`, `client.extraction.generateSchema(...)`, `client.extraction.documents.fields(...)`, `client.extraction.documents.sectionSummaries(...)`
-- New modules: `client.management`, `client.chunking`, `client.embedding`, `client.vectorStore`
-- New types: `ContentType`, `SummaryType`, `ChunkingConfig`, `EmbeddingModalities`, `CollectionSchema`, `VectorDBConfig`, `FieldDef`, `FieldMapping`, `ModelRef`, `BucketSource`, etc.
-
-The `/v1/make-zip` endpoint URL was also corrected — `client.extraction.makeZip` now hits the right path. If you were using `client.zip.makeZip` and got a 404, the upgrade fixes that.
 
 ## Support
 

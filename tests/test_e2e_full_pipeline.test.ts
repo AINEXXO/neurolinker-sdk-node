@@ -5,7 +5,7 @@ import {
   extractDocumentIds,
   extractRequestUid,
   type CollectionSchemaInput,
-  type EmbeddingModalitiesInput,
+  type ContentInput,
   type FieldMappingInput,
   type VectorDBConfigInput,
 } from "../src/index.js";
@@ -28,7 +28,6 @@ const COLLECTION_NAME = "sdk_full_e2e_stable";
 
 interface BackendModel {
   name: string;
-  endpoint: string;
   vector_types?: string[];
 }
 
@@ -53,26 +52,11 @@ describe("e2e full pipeline — extraction → bucket → chunking → embedding
       const client = NeuroLinker.fromEnv();
       const suffix = randomUUID().replace(/-/g, "").slice(0, 8);
       const bucketName = `sdk-full-e2e-${suffix}`;
-      const secretName = `sdk_full_e2e_vdb_${suffix}`;
-
       let bucketUid: string | undefined;
-      let secretId: string | undefined;
 
       try {
         // -----------------------------------------------------------------
-        // 0) Managed secret — production BYOK path for the vector DB key.
-        // -----------------------------------------------------------------
-        const secretResp = await client.management.secrets.create({
-          name: secretName,
-          value: VECTOR_DB_API_KEY!,
-        });
-        secretId = (secretResp as Record<string, unknown>).secret_id as string;
-        expect(typeof secretId).toBe("string");
-        expect(secretId.length).toBeGreaterThan(0);
-        console.log(`[full e2e] managed secret created: ${secretId}`);
-
-        // -----------------------------------------------------------------
-        // 1) Extract a PDF
+        // 0) Extract a PDF
         // -----------------------------------------------------------------
         const submit = await client.extraction.extract({
           urls: [PDF_URL!],
@@ -92,7 +76,7 @@ describe("e2e full pipeline — extraction → bucket → chunking → embedding
         console.log(`[full e2e] extraction completed → ${docUids.length} doc(s)`);
 
         // -----------------------------------------------------------------
-        // 2) Bucket — create then link the extraction request
+        // 1) Bucket — create then link the extraction request
         // -----------------------------------------------------------------
         const created = await client.management.buckets.create({ name: bucketName });
         bucketUid = (created as Record<string, unknown>).bucket_uid as string;
@@ -105,7 +89,7 @@ describe("e2e full pipeline — extraction → bucket → chunking → embedding
         console.log(`[full e2e] bucket ${bucketUid} created + sources attached`);
 
         // -----------------------------------------------------------------
-        // 3) Chunking — strict completed
+        // 2) Chunking — strict completed
         // -----------------------------------------------------------------
         const chunkSubmit = await client.chunking.jobs.create({
           bucketUid,
@@ -115,7 +99,7 @@ describe("e2e full pipeline — extraction → bucket → chunking → embedding
         expect(typeof chunkJobUid).toBe("string");
 
         const chunkFinal = await waitForTerminalStatus<Record<string, unknown>>({
-          fetchStatus: () => client.chunking.jobs.get(chunkJobUid),
+          fetchStatus: () => client.chunking.jobs.get(bucketUid, chunkJobUid),
           extractStatus: (r) => {
             const s = (r as Record<string, unknown>).status;
             return typeof s === "string" ? s : undefined;
@@ -130,30 +114,32 @@ describe("e2e full pipeline — extraction → bucket → chunking → embedding
         console.log(`[full e2e] chunking ${chunkJobUid} completed`);
 
         // -----------------------------------------------------------------
-        // 4) Embedding — internal text-dense model (no BYOK key)
+        // 3) Embedding — internal text-dense model (no BYOK key)
         // -----------------------------------------------------------------
         const model = await pickTextDenseModel(client);
-        const modalities: EmbeddingModalitiesInput = {
-          text: {
-            vectors: {
-              dense: {
-                vectorName: "text_dense_e2e",
-                model: { endpoint: model.endpoint, modelName: model.name },
-                inputs: ["content"],
+        const embeddings: ContentInput[] = [
+          {
+            contentType: "text",
+            inputs: ["content"],
+            vectors: [
+              {
+                vectorType: "dense",
+                fieldName: "text_dense_e2e",
+                modelName: model.name,
               },
-            },
+            ],
           },
-        };
+        ];
 
         const embedSubmit = await client.embedding.jobs.create({
           bucketUid,
-          modalities,
+          embeddings,
         });
         const embedJobUid = (embedSubmit as Record<string, unknown>).job_uid as string;
         expect(typeof embedJobUid).toBe("string");
 
         const embedFinal = await waitForTerminalStatus<Record<string, unknown>>({
-          fetchStatus: () => client.embedding.jobs.get(embedJobUid),
+          fetchStatus: () => client.embedding.jobs.get(bucketUid, embedJobUid),
           extractStatus: (r) => {
             const s = (r as Record<string, unknown>).status;
             return typeof s === "string" ? s : undefined;
@@ -168,7 +154,7 @@ describe("e2e full pipeline — extraction → bucket → chunking → embedding
         console.log(`[full e2e] embedding ${embedJobUid} completed`);
 
         // -----------------------------------------------------------------
-        // 5) Vector store — create collection (idempotent) + load job
+        // 4) Vector store — create collection (idempotent) + load job
         // -----------------------------------------------------------------
         const collection: CollectionSchemaInput = {
           name: COLLECTION_NAME,
@@ -179,7 +165,7 @@ describe("e2e full pipeline — extraction → bucket → chunking → embedding
             { name: "text_dense", dtype: "dense_vector", dim: VECTOR_DIM },
           ],
         };
-        const vdb: VectorDBConfigInput = { uri: VECTOR_DB_URI!, secretId };
+        const vdb: VectorDBConfigInput = { uri: VECTOR_DB_URI!, apiKey: VECTOR_DB_API_KEY! };
 
         const createResp = await client.vectorStore.collections.create({
           collection,
@@ -202,7 +188,7 @@ describe("e2e full pipeline — extraction → bucket → chunking → embedding
         expect(typeof loadJobUid).toBe("string");
 
         const loadFinal = await waitForTerminalStatus<Record<string, unknown>>({
-          fetchStatus: () => client.vectorStore.jobs.get(loadJobUid),
+          fetchStatus: () => client.vectorStore.jobs.get(bucketUid, loadJobUid),
           extractStatus: (r) => {
             const s = (r as Record<string, unknown>).status;
             return typeof s === "string" ? s : undefined;
@@ -224,14 +210,6 @@ describe("e2e full pipeline — extraction → bucket → chunking → embedding
             console.log(`[full e2e cleanup] bucket ${bucketUid} deleted`);
           } catch (e) {
             console.warn(`[full e2e cleanup] delete bucket ${bucketUid}:`, e);
-          }
-        }
-        if (secretId) {
-          try {
-            await client.management.secrets.delete(secretId);
-            console.log(`[full e2e cleanup] secret ${secretId} deleted`);
-          } catch (e) {
-            console.warn(`[full e2e cleanup] delete secret ${secretId}:`, e);
           }
         }
       }

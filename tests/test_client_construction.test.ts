@@ -45,8 +45,6 @@ describe("client construction — module surface", () => {
 
     // management
     expect(client.management.buckets).toBeDefined();
-    expect(client.management.secrets).toBeDefined();
-
     // vectorStore
     expect(client.vectorStore.collections).toBeDefined();
     expect(client.vectorStore.jobs).toBeDefined();
@@ -102,7 +100,7 @@ describe("client construction — default poll params propagation", () => {
   });
 
   it("management module receives only timeout (no polling)", () => {
-    // Management does not own polling — buckets/secrets are simple CRUD. We only
+    // Management does not own polling — buckets are simple CRUD. We only
     // need to verify it's wired with a timeout, which is sufficient to make the
     // single ConfigMap propagation test stable.
     const client = new NeuroLinker({ token: "nl_dummy", timeoutS: 42 });

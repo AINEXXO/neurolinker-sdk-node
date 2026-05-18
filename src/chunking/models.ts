@@ -8,7 +8,7 @@ const commonChunkingOptions = {
   parseFooters: z.boolean().optional(),
 };
 
-export const SectionGreedyConfig = z
+const sectionGreedyConfigBase = z
   .object({
     method: z.literal("section_greedy"),
     tMin: z.number().int().min(1).optional(),
@@ -16,6 +16,27 @@ export const SectionGreedyConfig = z
     ...commonChunkingOptions,
   })
   .strict();
+
+function validateSectionGreedyBudget(
+  value: { tMin?: number; tMax?: number },
+  ctx: z.RefinementCtx,
+): void {
+  if (
+    value.tMin !== undefined &&
+    value.tMax !== undefined &&
+    value.tMin >= value.tMax
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `tMin (${value.tMin}) must be less than tMax (${value.tMax})`,
+      path: ["tMin"],
+    });
+  }
+}
+
+export const SectionGreedyConfig = sectionGreedyConfigBase.superRefine((value, ctx) => {
+  validateSectionGreedyBudget(value, ctx);
+});
 
 export const MdHeaderLevelConfig = z
   .object({
@@ -35,11 +56,17 @@ export const BlockWindowConfig = z
   })
   .strict();
 
-export const ChunkingConfig = z.discriminatedUnion("method", [
-  SectionGreedyConfig,
-  MdHeaderLevelConfig,
-  BlockWindowConfig,
-]);
+export const ChunkingConfig = z
+  .discriminatedUnion("method", [
+    sectionGreedyConfigBase,
+    MdHeaderLevelConfig,
+    BlockWindowConfig,
+  ])
+  .superRefine((value, ctx) => {
+    if (value.method === "section_greedy") {
+      validateSectionGreedyBudget(value, ctx);
+    }
+  });
 
 export type SectionGreedyConfigInput = z.input<typeof SectionGreedyConfig>;
 export type MdHeaderLevelConfigInput = z.input<typeof MdHeaderLevelConfig>;

@@ -43,7 +43,7 @@ describe("default base URL — propagation across all modules", () => {
   it("chunking.jobs.get() hits DEFAULT_BASE_URL/v1/chunk/jobs/{uid}", async () => {
     let calledUrl: string | undefined;
     server.use(
-      http.get(`${BASE}/v1/chunk/jobs/${FAKE_JOB}`, ({ request }) => {
+      http.get(`${BASE}/v1/chunk/jobs/${FAKE_BUCKET}/${FAKE_JOB}`, ({ request }) => {
         calledUrl = request.url;
         return HttpResponse.json({
           job_uid: FAKE_JOB,
@@ -54,28 +54,28 @@ describe("default base URL — propagation across all modules", () => {
     );
 
     const client = makeClient();
-    await client.chunking.jobs.get(FAKE_JOB);
-    expect(calledUrl).toBe(`${BASE}/v1/chunk/jobs/${FAKE_JOB}`);
+    await client.chunking.jobs.get(FAKE_BUCKET, FAKE_JOB);
+    expect(calledUrl).toBe(`${BASE}/v1/chunk/jobs/${FAKE_BUCKET}/${FAKE_JOB}`);
   });
 
   it("embedding.jobs.get() hits DEFAULT_BASE_URL/v1/embed/jobs/{uid}", async () => {
     let calledUrl: string | undefined;
     server.use(
-      http.get(`${BASE}/v1/embed/jobs/${FAKE_JOB}`, ({ request }) => {
+      http.get(`${BASE}/v1/embed/jobs/${FAKE_BUCKET}/${FAKE_JOB}`, ({ request }) => {
         calledUrl = request.url;
         return HttpResponse.json({ job_uid: FAKE_JOB, status: "completed" });
       }),
     );
 
     const client = makeClient();
-    await client.embedding.jobs.get(FAKE_JOB);
-    expect(calledUrl).toBe(`${BASE}/v1/embed/jobs/${FAKE_JOB}`);
+    await client.embedding.jobs.get(FAKE_BUCKET, FAKE_JOB);
+    expect(calledUrl).toBe(`${BASE}/v1/embed/jobs/${FAKE_BUCKET}/${FAKE_JOB}`);
   });
 
   it("vectorStore.jobs.get() hits DEFAULT_BASE_URL/v1/vector-store/jobs/{uid}", async () => {
     let calledUrl: string | undefined;
     server.use(
-      http.get(`${BASE}/v1/vector-store/jobs/${FAKE_JOB}`, ({ request }) => {
+      http.get(`${BASE}/v1/vector-store/jobs/${FAKE_BUCKET}/${FAKE_JOB}`, ({ request }) => {
         calledUrl = request.url;
         return HttpResponse.json({
           job_uid: FAKE_JOB,
@@ -86,8 +86,8 @@ describe("default base URL — propagation across all modules", () => {
     );
 
     const client = makeClient();
-    await client.vectorStore.jobs.get(FAKE_JOB);
-    expect(calledUrl).toBe(`${BASE}/v1/vector-store/jobs/${FAKE_JOB}`);
+    await client.vectorStore.jobs.get(FAKE_BUCKET, FAKE_JOB);
+    expect(calledUrl).toBe(`${BASE}/v1/vector-store/jobs/${FAKE_BUCKET}/${FAKE_JOB}`);
   });
 
   it("management.buckets.create() hits DEFAULT_BASE_URL/v1/management/buckets", async () => {

@@ -20,6 +20,23 @@ describe("chunking Zod validation", () => {
     expect(parsed.tMin).toBe(200);
   });
 
+  it("rejects tMin not less than tMax", () => {
+    expect(() =>
+      SectionGreedyConfig.parse({
+        method: "section_greedy",
+        tMin: 100,
+        tMax: 100,
+      }),
+    ).toThrow();
+    expect(() =>
+      SectionGreedyConfig.parse({
+        method: "section_greedy",
+        tMin: 200,
+        tMax: 100,
+      }),
+    ).toThrow();
+  });
+
   it("accepts a valid MdHeaderLevelConfig", () => {
     const parsed = MdHeaderLevelConfig.parse({
       method: "md_header_level",

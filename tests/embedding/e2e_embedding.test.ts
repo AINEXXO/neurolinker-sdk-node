@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   NeuroLinker,
-  type EmbeddingModalitiesInput,
+  type ContentInput,
 } from "../../src/index.js";
 import { waitForTerminalStatus } from "../../src/polling.js";
 
@@ -10,7 +10,6 @@ const BUCKET_UID = process.env.NEUROLINKER_TEST_BUCKET_UID;
 
 interface BackendModel {
   name: string;
-  endpoint: string;
   vector_types?: string[];
 }
 
@@ -26,18 +25,20 @@ function pickTextDenseModel(payload: Record<string, unknown>): BackendModel {
   return found;
 }
 
-function buildModalities(model: BackendModel): EmbeddingModalitiesInput {
-  return {
-    text: {
-      vectors: {
-        dense: {
-          vectorName: "text_dense_e2e",
-          model: { endpoint: model.endpoint, modelName: model.name },
-          inputs: ["content"],
+function buildEmbeddings(model: BackendModel): ContentInput[] {
+  return [
+    {
+      contentType: "text",
+      inputs: ["content"],
+      vectors: [
+        {
+          vectorType: "dense",
+          fieldName: "text_dense_e2e",
+          modelName: model.name,
         },
-      },
+      ],
     },
-  };
+  ];
 }
 
 describe("e2e embedding — full flow", () => {
@@ -49,22 +50,19 @@ describe("e2e embedding — full flow", () => {
 
       const models = await client.embedding.listModels();
       const model = pickTextDenseModel(models);
-      console.log(
-        `[embedding e2e] picked model: ${model.name} @ ${model.endpoint}`,
-      );
+      console.log(`[embedding e2e] picked model: ${model.name}`);
 
       const submit = await client.embedding.jobs.create({
         bucketUid: BUCKET_UID!,
-        modalities: buildModalities(model),
+        embeddings: buildEmbeddings(model),
       });
       const jobUid = (submit as Record<string, unknown>).job_uid as string;
       expect(typeof jobUid).toBe("string");
       expect(jobUid.length).toBeGreaterThan(0);
       console.log(`[embedding e2e] submitted job ${jobUid}`);
 
-      // Strict wait: only "completed" is acceptable.
       const final = await waitForTerminalStatus<Record<string, unknown>>({
-        fetchStatus: () => client.embedding.jobs.get(jobUid),
+        fetchStatus: () => client.embedding.jobs.get(BUCKET_UID!, jobUid),
         extractStatus: (r) => {
           const s = (r as Record<string, unknown>).status;
           return typeof s === "string" ? s : undefined;

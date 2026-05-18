@@ -19,12 +19,18 @@ export const FieldDef = z
     name: z.string().min(1, "Field name cannot be empty"),
     dtype: DType,
     dim: z.number().int().min(1).optional(),
-    distance: Distance.default("cosine"),
+    distance: Distance.optional(),
     isPrimary: z.boolean().default(false),
     options: z.record(z.unknown()).default({}),
   })
   .strict()
   .superRefine((field, ctx) => {
+    if (field.distance !== undefined && field.dtype !== "dense_vector") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Field '${field.name}': distance is only valid for dense_vector fields`,
+      });
+    }
     if (field.dtype === "dense_vector" && (field.dim === undefined || field.dim <= 0)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -38,6 +44,7 @@ export const CollectionSchema = z
     name: z.string().min(1, "Collection name cannot be empty"),
     fields: z.array(FieldDef).min(1),
     description: z.string().default(""),
+    options: z.record(z.unknown()).default({}),
   })
   .strict()
   .superRefine((coll, ctx) => {
@@ -60,7 +67,7 @@ export const CollectionSchema = z
 export const VectorDBConfig = z
   .object({
     uri: z.string().min(1, "uri cannot be empty"),
-    secretId: z.string().optional(),
+    apiKey: z.string().optional(),
     timeout: z.number().int().default(300),
   })
   .strict();
@@ -81,10 +88,14 @@ export function toFieldDefPayload(f: z.infer<typeof FieldDef>): Record<string, u
   const out: Record<string, unknown> = {
     name: f.name,
     dtype: f.dtype,
-    distance: f.distance,
     is_primary: f.isPrimary,
     options: f.options,
   };
+  if (f.dtype === "dense_vector") {
+    out.distance = f.distance ?? "cosine";
+  } else if (f.distance !== undefined) {
+    out.distance = f.distance;
+  }
   if (f.dim !== undefined) out.dim = f.dim;
   return out;
 }
@@ -96,6 +107,7 @@ export function toCollectionSchemaPayload(
     name: parsed.name,
     fields: parsed.fields.map(toFieldDefPayload),
     description: parsed.description,
+    options: parsed.options,
   };
 }
 
@@ -106,7 +118,7 @@ export function toVectorDBConfigPayload(
     uri: parsed.uri,
     timeout: parsed.timeout,
   };
-  if (parsed.secretId !== undefined) out.secret_id = parsed.secretId;
+  if (parsed.apiKey !== undefined) out.api_key = parsed.apiKey;
   return out;
 }
 

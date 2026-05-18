@@ -26,20 +26,22 @@ function makeClient() {
   });
 }
 
-const validModalities = {
-  text: {
-    vectors: {
-      dense: {
-        vectorName: "text_dense",
-        model: { endpoint: "https://example.com", modelName: "m" },
-        inputs: ["content"],
+const validEmbeddings = [
+  {
+    contentType: "text",
+    inputs: ["content"],
+    vectors: [
+      {
+        vectorType: "dense",
+        fieldName: "text_dense",
+        modelName: "ainexxo-bge-m3",
       },
-    },
+    ],
   },
-};
+] as const;
 
 describe("embedding.jobs.create", () => {
-  it("posts snake_case modalities payload", async () => {
+  it("posts snake_case embeddings payload", async () => {
     let received: unknown;
     server.use(
       http.post(`${BASE_URL}/v1/embed/jobs`, async ({ request }) => {
@@ -51,48 +53,101 @@ describe("embedding.jobs.create", () => {
     const client = makeClient();
     const resp = await client.embedding.jobs.create({
       bucketUid: "b-1",
-      modalities: validModalities,
+      embeddings: validEmbeddings as any,
     });
     expect(resp).toEqual({ job_uid: "embed-1", status: "queued" });
     expect(received).toEqual({
       bucket_uid: "b-1",
-      modalities: {
-        text: {
-          vectors: {
-            dense: {
-              vector_name: "text_dense",
-              model: { endpoint: "https://example.com", model_name: "m" },
-              inputs: ["content"],
+      embeddings: [
+        {
+          content_type: "text",
+          inputs: ["content"],
+          vectors: [
+            {
+              vector_type: "dense",
+              field_name: "text_dense",
+              model_name: "ainexxo-bge-m3",
             },
-          },
+          ],
         },
-      },
+      ],
     });
+  });
+
+  it("supports multiple vectors and external apiKey", async () => {
+    let received: any;
+    server.use(
+      http.post(`${BASE_URL}/v1/embed/jobs`, async ({ request }) => {
+        received = await request.json();
+        return HttpResponse.json({ job_uid: "embed-2", status: "queued" });
+      }),
+    );
+
+    const client = makeClient();
+    await client.embedding.jobs.create({
+      bucketUid: "b-2",
+      embeddings: [
+        {
+          contentType: "text",
+          inputs: ["content", "header_path"],
+          vectors: [
+            {
+              vectorType: "dense",
+              fieldName: "text_dense_bge",
+              modelName: "ainexxo-bge-m3",
+            },
+            {
+              vectorType: "sparse",
+              fieldName: "text_sparse_splade",
+              modelName: "ainexxo-splade",
+            },
+          ],
+        },
+        {
+          contentType: "image",
+          inputs: ["image_base64", "description"],
+          vectors: [
+            {
+              vectorType: "dense",
+              fieldName: "image_dense_jina",
+              modelName: "jina_ai/jina-embeddings-v4",
+              apiKey: "jina-key",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(received.embeddings[0].vectors[0].field_name).toBe("text_dense_bge");
+    expect(received.embeddings[0].vectors[1].field_name).toBe("text_sparse_splade");
+    expect(received.embeddings[1].vectors[0].api_key).toBe("jina-key");
   });
 
   it("rejects empty bucketUid", async () => {
     const client = makeClient();
     await expect(
-      client.embedding.jobs.create({ bucketUid: "", modalities: validModalities }),
+      client.embedding.jobs.create({ bucketUid: "", embeddings: validEmbeddings as any }),
     ).rejects.toBeInstanceOf(NeuroLinkerConfigError);
   });
 
-  it("rejects invalid modalities", async () => {
+  it("rejects invalid embeddings", async () => {
     const client = makeClient();
     await expect(
       client.embedding.jobs.create({
         bucketUid: "b-1",
-        modalities: {
-          text: {
-            vectors: {
-              dense: {
-                vectorName: "item_bad",
-                model: { endpoint: "https://example.com", modelName: "m" },
-                inputs: [],
+        embeddings: [
+          {
+            contentType: "text",
+            inputs: ["content"],
+            vectors: [
+              {
+                vectorType: "dense",
+                fieldName: "item_bad",
+                modelName: "ainexxo-bge-m3",
               },
-            },
+            ],
           },
-        } as never,
+        ] as any,
       }),
     ).rejects.toBeInstanceOf(NeuroLinkerConfigError);
   });
@@ -106,7 +161,7 @@ describe("embedding.jobs.create", () => {
 
     const client = makeClient();
     await expect(
-      client.embedding.jobs.create({ bucketUid: "b-1", modalities: validModalities }),
+      client.embedding.jobs.create({ bucketUid: "b-1", embeddings: validEmbeddings as any }),
     ).rejects.toBeInstanceOf(NeuroLinkerAPIError);
   });
 });
@@ -114,20 +169,20 @@ describe("embedding.jobs.create", () => {
 describe("embedding.jobs.get / wait", () => {
   it("get returns the body", async () => {
     server.use(
-      http.get(`${BASE_URL}/v1/embed/jobs/embed-1`, () =>
+      http.get(`${BASE_URL}/v1/embed/jobs/b-1/embed-1`, () =>
         HttpResponse.json({ job_uid: "embed-1", status: "running" }),
       ),
     );
 
     const client = makeClient();
-    const resp = await client.embedding.jobs.get("embed-1");
+    const resp = await client.embedding.jobs.get("b-1", "embed-1");
     expect(resp).toEqual({ job_uid: "embed-1", status: "running" });
   });
 
   it("wait polls until terminal status", async () => {
     let attempts = 0;
     server.use(
-      http.get(`${BASE_URL}/v1/embed/jobs/embed-2`, () => {
+      http.get(`${BASE_URL}/v1/embed/jobs/b-1/embed-2`, () => {
         attempts += 1;
         if (attempts < 2) {
           return HttpResponse.json({ job_uid: "embed-2", status: "running" });
@@ -137,7 +192,7 @@ describe("embedding.jobs.get / wait", () => {
     );
 
     const client = makeClient();
-    const resp = await client.embedding.jobs.wait("embed-2");
+    const resp = await client.embedding.jobs.wait("b-1", "embed-2");
     expect(resp).toEqual({ job_uid: "embed-2", status: "completed" });
     expect(attempts).toBeGreaterThanOrEqual(2);
   });
@@ -151,7 +206,7 @@ describe("embedding.listModels", () => {
         authHeader = request.headers.get("authorization");
         return HttpResponse.json({
           success: true,
-          models: [{ name: "m1", endpoint: "https://x", vector_types: ["dense"] }],
+          models: [{ name: "m1", vector_types: ["dense"] }],
         });
       }),
     );

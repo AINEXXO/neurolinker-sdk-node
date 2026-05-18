@@ -8,6 +8,7 @@ export {
   extractDocumentIds,
   extractRequestUid,
   extractStatus,
+  type EnrichmentMode,
   type DocumentUpload,
 } from "./extraction/index.js";
 
@@ -25,20 +26,10 @@ export {
 
 // Embedding
 export {
-  EmbeddingModalities,
-  ImageModality,
-  ModalityVectors,
-  ModelRef,
-  TableModality,
-  TextModality,
-  VectorConfig,
-  type EmbeddingModalitiesInput,
-  type ImageModalityInput,
-  type ModalityVectorsInput,
-  type ModelRefInput,
-  type TableModalityInput,
-  type TextModalityInput,
-  type VectorConfigInput,
+  Content,
+  EmbeddingVector,
+  type ContentInput,
+  type EmbeddingVectorInput,
 } from "./embedding/index.js";
 
 // Vector store

@@ -40,32 +40,32 @@ Or store it in a `.env` file at the project root — load it once at startup and
 import "dotenv/config"; // reads .env into process.env
 ```
 
-**Async**
+**Async (ESM)**
 
 ```ts
-import { NeuroLinker } from "neurolinker-sdk";
-
-const client = new NeuroLinker({ token: "nl_****" });
-const tasks = await client.extraction.listTasks();
-
-// with .env (after loading dotenv)
-const clientFromEnv = NeuroLinker.fromEnv();
-const tasksFromEnv = await clientFromEnv.extraction.listTasks();
-```
-
-The same flow works in CommonJS:
-
-```js
-const { NeuroLinker } = require("neurolinker-sdk");
+import { NeuroLinker, extractRequestUid, extractDocumentIds } from "neurolinker-sdk";
+import "dotenv/config";
 
 async function main() {
-  const client = new NeuroLinker({ token: process.env.NEUROLINKER_API_KEY });
-  const tasks = await client.extraction.listTasks();
-  console.log(tasks);
+  const client = NeuroLinker.fromEnv();
+
+  // Submit a PDF for extraction
+  const response = await client.extraction.extract({ urls: ["https://example.com/your-doc.pdf"] });
+  const requestUid = extractRequestUid(response);
+
+  // Wait for completion (the SDK polls until the job reaches a terminal state)
+  const status = await client.extraction.waitForRequest(requestUid);
+  const docIds = extractDocumentIds(status);
+
+  // Fetch the extracted content
+  const docs = await client.extraction.documents.json(docIds);
+  console.log(docs);
 }
 
 main();
 ```
+
+The same flow works in CommonJS — replace `import` with `require("neurolinker-sdk")`.
 
 ## Pipeline overview
 

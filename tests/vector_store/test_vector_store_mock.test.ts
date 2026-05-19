@@ -61,6 +61,7 @@ describe("vectorStore.collections.create", () => {
       collection: {
         name: "my_collection",
         description: "",
+        options: {},
         fields: [
           {
             name: "chunk_id",

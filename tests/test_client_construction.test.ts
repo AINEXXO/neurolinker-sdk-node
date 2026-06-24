@@ -21,11 +21,12 @@ function getPollFields(obj: unknown): {
 }
 
 describe("client construction — module surface", () => {
-  it("client exposes all 5 modules", () => {
+  it("client exposes all 6 modules", () => {
     const client = new NeuroLinker({ token: "nl_dummy", timeoutS: 1.0 });
     expect(client.extraction).toBeDefined();
     expect(client.chunking).toBeDefined();
     expect(client.embedding).toBeDefined();
+    expect(client.evaluation).toBeDefined();
     expect(client.management).toBeDefined();
     expect(client.vectorStore).toBeDefined();
   });
@@ -42,6 +43,12 @@ describe("client construction — module surface", () => {
 
     // embedding
     expect(client.embedding.jobs).toBeDefined();
+
+    // evaluation
+    expect(client.evaluation.oneshot).toBeDefined();
+    expect(client.evaluation.oneshot.jobs).toBeDefined();
+    expect(client.evaluation.tracking).toBeDefined();
+    expect(client.evaluation.tracking.tracks).toBeDefined();
 
     // management
     expect(client.management.buckets).toBeDefined();
@@ -65,6 +72,7 @@ describe("client construction — default poll params propagation", () => {
     for (const jobs of [
       client.chunking.jobs,
       client.embedding.jobs,
+      client.evaluation.oneshot.jobs,
       client.vectorStore.jobs,
     ]) {
       const j = getPollFields(jobs);
@@ -90,6 +98,7 @@ describe("client construction — default poll params propagation", () => {
     for (const jobs of [
       client.chunking.jobs,
       client.embedding.jobs,
+      client.evaluation.oneshot.jobs,
       client.vectorStore.jobs,
     ]) {
       const j = getPollFields(jobs);

@@ -1,6 +1,6 @@
 # neurolinker-sdk
 
-NeuroLinker is a document intelligence service by Ainexxo S.R.L. that automates the full ingestion pipeline for RAG applications — from PDF extraction to vector-store loading. This SDK is the official Node.js / TypeScript client for the NeuroLinker API: it provides an async client for the complete pipeline (extraction full and field-based, bucket management, chunking, embedding, and vector-store loading).
+NeuroLinker is a document intelligence service by Ainexxo S.R.L. that automates the full ingestion pipeline for RAG applications — from PDF extraction to vector-store loading. This SDK is the official Node.js / TypeScript client for the NeuroLinker API: it provides an async client for the complete pipeline (extraction full and field-based, bucket management, chunking, embedding, and vector-store loading), plus one-shot RAG evaluation with Ragas metrics.
 
 ## Table of contents
 
@@ -13,6 +13,7 @@ NeuroLinker is a document intelligence service by Ainexxo S.R.L. that automates 
 - [Chunking](#chunking)
 - [Embedding](#embedding)
 - [Vector Store](#vector-store)
+- [Evaluation](#evaluation)
 - [End-to-end pipeline](#end-to-end-pipeline)
 - [Error handling](#error-handling)
 - [Support](#support)
@@ -69,7 +70,7 @@ The same flow works in CommonJS — replace `import` with `require("neurolinker-
 
 ## Pipeline overview
 
-The five modules are designed to compose end-to-end. A typical RAG ingestion run goes through them in order:
+The ingestion modules are designed to compose end-to-end. A typical RAG ingestion run goes through them in order:
 
 ```
    PDF (URL or upload)
@@ -119,7 +120,7 @@ The SDK is async-only — every method returns a `Promise`.
 
 ### Modules
 
-The SDK groups the API into five modules reachable as attributes on the client:
+The SDK groups the API into six modules reachable as attributes on the client:
 
 | Module | Purpose |
 |---|---|
@@ -128,6 +129,7 @@ The SDK groups the API into five modules reachable as attributes on the client:
 | `chunking` | Chunking jobs |
 | `embedding` | Embedding jobs |
 | `vectorStore` | Vector-store collections and load jobs |
+| `evaluation` | RAG evaluation — one-shot batch (`.oneshot`) + continuous tracking (`.tracking`) |
 
 ## Extraction
 
@@ -559,9 +561,138 @@ const collection = CollectionSchema.parse({
 });
 ```
 
+## Evaluation
+
+Evaluate your RAG with [Ragas](https://docs.ragas.io) metrics, in two complementary modes:
+
+- **One-shot** (`client.evaluation.oneshot`) — score a batch dataset of pre-computed RAG outputs.
+- **Tracking** (`client.evaluation.tracking` + `instrument`) — attach to a live RAG and score every query automatically, continuously.
+
+### One-shot
+
+Upload a JSONL dataset of pre-computed RAG outputs; the service scores every row and returns the per-row scores plus an aggregated summary. Black-box: the dataset is the only input — not coupled to buckets or the rest of the pipeline.
+
+The dataset is JSONL (one JSON object per line) with the Ragas-canonical columns. `user_input` and `response` are required; `retrieved_contexts` (`string[]`) and `reference` (`string`) are optional — including them unlocks more metrics (faithfulness, the context metrics, answer/factual correctness, ...).
+
+- `client.evaluation.oneshot.jobs.create({ dataset: { filename, content } })`
+Upload the JSONL dataset and enqueue the evaluation in one request. The dataset is passed in memory as `{ filename, content: Buffer }`; the filename must end with `.jsonl`. Returns the body carrying `eval_uid` + `status`.
+
+- `client.evaluation.oneshot.jobs.get(evalUid)`
+Retrieve the current state of an evaluation (`pending` → `processing` → `completed` / `failed`); on completion it also carries `metrics_computed` / `metrics_skipped`.
+
+- `client.evaluation.oneshot.jobs.wait(evalUid, { timeoutS?, pollIntervalS?, pollMaxIntervalS? })`
+Poll until terminal status (`completed` / `failed`).
+
+- `client.evaluation.oneshot.results(evalUid)`
+Fetch the result of a completed evaluation. Returns the parsed `result.json` — `{ eval_uid, rows, summary }`: per-row metric scores plus an aggregated summary (mean / percentiles / count per metric). Throws if the result isn't available yet — call `jobs.wait` first.
+
+Example:
+
+```ts
+import { NeuroLinker } from "neurolinker-sdk";
+import "dotenv/config";
+
+async function main() {
+  const rows = [
+    {
+      user_input: "What is the capital of France?",
+      response: "The capital of France is Paris.",
+      retrieved_contexts: ["Paris is the capital and largest city of France."],
+      reference: "Paris is the capital of France.",
+    },
+  ];
+  const dataset = {
+    filename: "data.jsonl",
+    content: Buffer.from(rows.map((r) => JSON.stringify(r)).join("\n"), "utf-8"),
+  };
+
+  const client = NeuroLinker.fromEnv();
+  const job = await client.evaluation.oneshot.jobs.create({ dataset });
+  const evalUid = job.eval_uid as string;
+  await client.evaluation.oneshot.jobs.wait(evalUid);
+  const result = await client.evaluation.oneshot.results(evalUid);
+  console.log(result.summary);
+}
+
+main();
+```
+
+### Tracking (continuous)
+
+Observe a RAG **in production**: attach the tracer once, and every query is traced to NeuroLinker, scored with Ragas, and surfaced in the dashboard. Same metrics as one-shot (the reference-free ones), computed continuously per query.
+
+**1. Create a track (once).** The `track_uid` ties every traced query to this app — store it.
+
+```ts
+const track = await client.evaluation.tracking.tracks.create({ name: "prod-rag" });
+console.log(track.track_uid);
+```
+
+**2. Instrument your app.** Tracking uses OpenTelemetry. Install the tracking peer deps + your framework's OpenInference instrumentor, then call `instrument()` at startup. Node has no entry-point auto-discovery, so you pass the instrumentation instances explicitly:
+
+```bash
+npm install @opentelemetry/api @opentelemetry/sdk-trace-node @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-semantic-conventions @opentelemetry/instrumentation
+npm install @arizeai/openinference-instrumentation-langchain @langchain/core   # swap for -openai, -llama-index, ...
+```
+
+```ts
+import { instrument } from "neurolinker-sdk";
+import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
+import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
+
+const lc = new LangChainInstrumentation();
+await instrument("<track_uid>", { instrumentations: [lc] }); // apiKey/baseUrl from env
+lc.manuallyInstrument(CallbackManagerModule); // LangChain: patch its callbacks module
+```
+
+Your framework's calls are now traced **automatically**. Notes:
+
+- Register instrumentations **before** importing the framework you're tracing (OpenTelemetry patches modules at import time).
+- If your app already runs OpenTelemetry, on Node NeuroLinker cannot attach to its provider automatically — add a `BatchSpanProcessor` with the NeuroLinker OTLP exporter to your own provider, or call `instrument()` first. It warns rather than dropping spans silently.
+- A short-lived script should call `await provider.forceFlush()` (on the returned provider) before exiting, so the last spans are sent.
+
+**Custom RAG with no framework instrumentor.** Set `manual: true` and wrap each query, handing over the pieces explicitly:
+
+```ts
+import { instrument, recordQuery } from "neurolinker-sdk";
+
+await instrument("<track_uid>", { manual: true }); // manual:true silences the "no instrumentations" notice
+
+await recordQuery({ userInput: question }, async (q) => {
+  const docs = await myRetriever(question);
+  q.setContexts(docs.map((d) => d.text)); // unlocks the context metrics
+  const resp = await myLlm(question, docs); // your own LLM call
+  q.setResponse(resp.text);
+  q.setLlm({
+    // optional — values come from the LLM response
+    model: resp.model,
+    inputTokens: resp.usage.inputTokens,
+    outputTokens: resp.usage.outputTokens,
+  });
+});
+```
+
+**Read the dashboard.**
+
+- `client.evaluation.tracking.tracks.create({ name })` / `.list()` / `.setActive(trackUid, { active })`
+Manage tracks. A disabled track stops accepting traces; its history stays readable.
+
+- `client.evaluation.tracking.queries(trackUid, { limit })`
+The per-query rows a track has accumulated (input/output, metrics, latency), most recent first.
+
+- `client.evaluation.tracking.query(trackUid, traceId)`
+Drill-down for one query — adds the retrieved contexts, model and token counts.
+
+```ts
+const res = await client.evaluation.tracking.queries(trackUid);
+for (const row of res.queries as Array<Record<string, unknown>>) {
+  console.log(row.user_input, row.metrics);
+}
+```
+
 ## End-to-end pipeline
 
-The five modules are designed to compose. The client manually sequences each step — there is no automatic orchestrator.
+The ingestion modules compose end to end — the client manually sequences each step; there is no automatic orchestrator. (Evaluation sits outside this chain: batch scoring via `oneshot`, plus continuous tracking of a live RAG.)
 
 ```ts
 import {

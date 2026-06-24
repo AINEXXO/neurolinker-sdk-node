@@ -145,3 +145,5 @@ dist/
 .DS_Store
 coverage/
 tech-doc.md
+
+/tmp

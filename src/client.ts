@@ -7,6 +7,7 @@ import {
   configFromEnv,
 } from "./config.js";
 import { EmbeddingModule } from "./embedding/module.js";
+import { EvaluationModule } from "./evaluation/module.js";
 import { ExtractionModule } from "./extraction/module.js";
 import { ManagementModule } from "./management/module.js";
 import { VectorStoreModule } from "./vectorStore/module.js";
@@ -15,6 +16,7 @@ export class NeuroLinker {
   public readonly extraction: ExtractionModule;
   public readonly chunking: ChunkingModule;
   public readonly embedding: EmbeddingModule;
+  public readonly evaluation: EvaluationModule;
   public readonly management: ManagementModule;
   public readonly vectorStore: VectorStoreModule;
 
@@ -48,6 +50,7 @@ export class NeuroLinker {
     this.extraction = new ExtractionModule(moduleArgs);
     this.chunking = new ChunkingModule(moduleArgs);
     this.embedding = new EmbeddingModule(moduleArgs);
+    this.evaluation = new EvaluationModule(moduleArgs);
     this.management = new ManagementModule({
       baseUrl: this.baseUrl,
       token: this.token,

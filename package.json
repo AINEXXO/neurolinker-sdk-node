@@ -35,12 +35,46 @@
   "dependencies": {
     "zod": "^3.23.8"
   },
+  "peerDependencies": {
+    "@arizeai/openinference-semantic-conventions": ">=2.0.0",
+    "@opentelemetry/api": ">=1.0.0",
+    "@opentelemetry/exporter-trace-otlp-proto": ">=0.50.0",
+    "@opentelemetry/instrumentation": ">=0.50.0",
+    "@opentelemetry/sdk-trace-node": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@arizeai/openinference-semantic-conventions": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "@opentelemetry/exporter-trace-otlp-proto": {
+      "optional": true
+    },
+    "@opentelemetry/instrumentation": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-node": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@arizeai/openinference-instrumentation-langchain": "^4.0.13",
+    "@arizeai/openinference-semantic-conventions": "^2.5.0",
+    "@langchain/core": "^1.2.1",
+    "@langchain/openai": "^1.5.3",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
+    "@opentelemetry/instrumentation": "^0.219.0",
+    "@opentelemetry/sdk-trace-node": "^2.8.0",
     "@types/node": "^22.0.0",
     "dotenv": "^16.4.5",
     "eslint": "^9.0.0",
     "msw": "^2.6.0",
+    "openai": "^6.44.0",
     "tsup": "^8.2.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.5.4",
     "vitest": "^2.0.5"
   }

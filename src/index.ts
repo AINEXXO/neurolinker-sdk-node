@@ -48,3 +48,14 @@ export {
 
 // Management
 export { type BucketSource } from "./management/index.js";
+
+// Evaluation
+export { type Dataset } from "./evaluation/index.js";
+
+// Evaluation tracking — process-level instrumentation (call once at startup)
+export {
+  instrument,
+  type InstrumentOptions,
+  type TracerProviderHandle,
+} from "./evaluation/tracking/instrument.js";
+export { recordQuery, QueryRecorder } from "./evaluation/tracking/manual.js";

@@ -1,6 +1,6 @@
 # neurolinker-sdk
 
-NeuroLinker is a document intelligence service by Ainexxo S.R.L. that automates the full ingestion pipeline for RAG applications — from PDF extraction to vector-store loading. This SDK is the official Node.js / TypeScript client for the NeuroLinker API: it provides an async client for the complete pipeline (extraction full and field-based, bucket management, chunking, embedding, and vector-store loading), plus one-shot RAG evaluation with Ragas metrics.
+NeuroLinker is a document intelligence service by Ainexxo S.R.L. that automates the full ingestion pipeline for RAG applications — from PDF extraction to vector-store loading. This SDK is the official Node.js / TypeScript client for the NeuroLinker API: it provides an async client for the complete pipeline (extraction full and field-based, bucket management, chunking, embedding, and vector-store loading), plus RAG evaluation with Ragas metrics (one-shot batch and continuous tracking).
 
 ## Table of contents
 
@@ -313,6 +313,8 @@ BlockWindowConfig.parse({
 });
 ```
 
+`modelName` (available on all three methods) is the Hugging Face Hub repository id (`org/model`) of the tokenizer used to measure the token budget.
+
 ## Embedding
 
 Embedding jobs over a chunked bucket. Before configuring a job there are two quick choices to make: **which vector type(s)** to compute, and **which chunk fields** to feed in.
@@ -417,7 +419,7 @@ Conventions worth knowing:
 - `fieldName` cannot start with `item_` or `chunk_` — those prefixes are reserved for internal fields. The name you pick is what you reference later as `source` in a `FieldMapping` when loading into a vector store, so keep it stable across runs of the same project.
 - `Content.vectors` is the inner list of vectors to compute for that content block.
 - Internal Ainexxo models use `modelName: "ainexxo-..."` and omit `apiKey`.
-- External LiteLLM models use the LiteLLM `modelName` as-is and carry their own `apiKey` directly on each `EmbeddingVector`.
+- External LiteLLM models use the LiteLLM `modelName` as-is and carry their own `apiKey` directly on each `EmbeddingVector`. See the [LiteLLM supported embedding models](https://docs.litellm.ai/docs/embedding/supported_embedding) for valid model names.
 
 ## Vector Store
 

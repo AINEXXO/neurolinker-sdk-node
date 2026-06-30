@@ -6,6 +6,7 @@ export { TasksResource } from "./tasks.js";
 export { ZipResource } from "./zip.js";
 export {
   extractDocumentIds,
+  extractMarkdownDocumentIds,
   extractRequestUid,
   extractStatus,
   extractionTimeoutSuffix,

@@ -89,4 +89,16 @@ export class DocumentsResource {
   async fields(documentIds: string[]): Promise<Record<string, unknown>> {
     return await this.post("/v1/documents/fields", { document_ids: documentIds });
   }
+
+  /**
+   * POST /v1/documents/scalars
+   *
+   * Retrieves the extracted scalar fields for documents processed through
+   * markdown field extraction. Pass the new `document_uid` values from the
+   * submit response's `document_map`. Returns `content: null` for documents
+   * whose extraction did not complete.
+   */
+  async scalars(documentIds: string[]): Promise<Record<string, unknown>> {
+    return await this.post("/v1/documents/scalars", { document_ids: documentIds });
+  }
 }

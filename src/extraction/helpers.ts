@@ -29,6 +29,22 @@ export function extractDocumentIds(statusResponse: Record<string, any>): string[
   return out;
 }
 
+export function extractMarkdownDocumentIds(submitResponse: Record<string, any>): string[] {
+  let documentMap: any = submitResponse.document_map;
+  if (!documentMap && submitResponse.data && typeof submitResponse.data === "object") {
+    documentMap = submitResponse.data.document_map;
+  }
+  if (!Array.isArray(documentMap)) return [];
+
+  const out: string[] = [];
+  for (const item of documentMap) {
+    if (item && typeof item === "object" && typeof item.document_uid === "string") {
+      out.push(item.document_uid);
+    }
+  }
+  return out;
+}
+
 export function extractStatus(response: Record<string, any>): string | undefined {
   let status: unknown = response.status;
   if (status === undefined && response.data && typeof response.data === "object") {

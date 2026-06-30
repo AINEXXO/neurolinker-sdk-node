@@ -56,6 +56,15 @@ export class ExtractionModule {
     return await this._extract.extractFields(args);
   }
 
+  async extractFieldsFromMarkdown(args: {
+    jsonSchema: Record<string, unknown>;
+    documentIds: string[];
+    alias?: string;
+    description?: string;
+  }): Promise<Record<string, unknown>> {
+    return await this._extract.extractFieldsFromMarkdown(args);
+  }
+
   async generateSchema(args: { description: string }): Promise<Record<string, unknown>> {
     return await this._extract.generateSchema(args);
   }

@@ -6,6 +6,7 @@ export {
   ContentType,
   SummaryType,
   extractDocumentIds,
+  extractMarkdownDocumentIds,
   extractRequestUid,
   extractStatus,
   type EnrichmentMode,

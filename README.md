@@ -139,6 +139,7 @@ PDF processing — full extraction or schema-based field extraction. The two pip
 |---|---|---|
 | `extraction.extract(...)` | You want the full document content for downstream pipelines (RAG, search, chunking) | Markdown, structured JSON, per-page images, page/section summaries |
 | `extraction.extractFields(...)` | You only need a structured payload that conforms to a JSON Schema you supply (invoices, forms, contracts) | A JSON object matching your schema, retrievable via `documents.fields(...)` |
+| `extraction.extractFieldsFromMarkdown(...)` | You already ran full extraction and want scalar fields from a document's markdown (no re-upload) | A JSON object matching your schema per document, retrievable via `documents.scalars(...)` |
 
 Both reserve credits at submit time on a per-page basis (see the platform documentation for pricing).
 
@@ -176,6 +177,20 @@ await client.extraction.extractFields({
 
 After completion, retrieve the extracted fields via `client.extraction.documents.fields(documentIds)`.
 
+- `client.extraction.extractFieldsFromMarkdown({ jsonSchema, documentIds, alias?, description? })`
+Extract scalar fields from the markdown of **already full-extracted** documents — no re-upload. `documentIds` are the `document_uid` values of completed full-extraction documents; `jsonSchema` follows the same supported subset as `extractFields`. The response carries a `document_map` mapping each source `document_uid` to a new one — poll the batch with `waitForRequest(requestUid)` and retrieve the values via `documents.scalars(newIds)`. Use `extractMarkdownDocumentIds(submitResponse)` to pull the new ids. Example:
+
+```ts
+await client.extraction.extractFieldsFromMarkdown({
+  jsonSchema: {
+    type: "object",
+    properties: { invoice_number: { type: "string" }, total_amount: { type: "number" } },
+    required: ["invoice_number"],
+  },
+  documentIds: ["<completed-full-extraction-document_uid>"],
+});
+```
+
 - `client.extraction.generateSchema({ description })`
 Generate a JSON Schema from a natural-language description — the returned schema is ready to be passed to `extractFields`. Example: `{ description: "Extract invoice number, issue date, and total amount from an invoice" }`.
 
@@ -211,6 +226,9 @@ Retrieve a single consolidated summary. `summaryType` is required.
 
 - `client.extraction.documents.fields(documentIds)`
 Retrieve the structured fields payload for documents processed via `extractFields`. Returns an error entry for documents processed via full extraction.
+
+- `client.extraction.documents.scalars(documentIds)`
+Retrieve the scalar fields payload for documents processed via `extractFieldsFromMarkdown`. Pass the new `document_uid` values from the submit response's `document_map`.
 
 - `client.extraction.makeZip({ jobUid, documentUid?, localImages?, contentTypes? })`
 Request a ZIP archive for a completed extraction job (entire job or a single document). With `localImages: true`, JSON/Markdown references are rewritten to local relative image paths. `contentTypes` (e.g. `["text"]`) filters JSON/Markdown content included in the ZIP.

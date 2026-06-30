@@ -153,6 +153,45 @@ export class ExtractResource {
     });
   }
 
+  /**
+   * POST /v1/extract-fields-from-markdown
+   *
+   * Extracts scalar fields from the markdown of already full-extracted documents
+   * (no upload). `documentIds` are the `document_uid` values of completed
+   * full-extraction documents. The response carries a `document_map` mapping each
+   * source `document_uid` to a new one — use the new ids for polling
+   * (`status.request` / `waitForRequest`) and retrieval (`documents.scalars`).
+   * See `extractMarkdownDocumentIds`. Source documents rejected at submit are
+   * listed in the response's `skipped`.
+   */
+  async extractFieldsFromMarkdown(args: {
+    jsonSchema: Record<string, unknown>;
+    documentIds: string[];
+    alias?: string;
+    description?: string;
+  }): Promise<Record<string, unknown>> {
+    if (!args.documentIds || args.documentIds.length === 0) {
+      throw new NeuroLinkerConfigError("documentIds must be a non-empty array.");
+    }
+    validateJsonSchema(args.jsonSchema);
+
+    const url = buildUrl(this.baseUrl, "/v1/extract-fields-from-markdown");
+    const body: Record<string, unknown> = {
+      document_ids: args.documentIds,
+      json_schema: args.jsonSchema,
+    };
+    if (args.alias) body.alias = args.alias;
+    if (args.description) body.description = args.description;
+
+    return await fetchJson({
+      url,
+      method: "POST",
+      token: this.token,
+      timeoutS: this.timeoutS,
+      body,
+    });
+  }
+
   async generateSchema(args: { description: string }): Promise<Record<string, unknown>> {
     if (!args.description || !args.description.trim()) {
       throw new NeuroLinkerConfigError("description must be a non-empty string.");
